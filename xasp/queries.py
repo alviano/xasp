@@ -107,14 +107,8 @@ explain_false(0) :- #false.
     return res
 
 
-def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
-    res = compute_stable_model("""
+EXPLAIN_ENCODING = """
 %******************************************************************************
-Compute minimal assumption sets for a program wrt. an answer set. If the atom
-to explain is false, the considered assumption sets will not assume its
-falsity.
-
-
 __INPUT FORMAT__
 
 Each rule of the program is encoded by facts of the form
@@ -130,9 +124,6 @@ Aggregates are identified by facts of the form
 The answer set is encoded by facts of the form
 - true(ATOM|AGGREGATE)
 - false(ATOM|AGGREGATE)
-
-If the atom to explain is false, the input must contain one fact of the form
-- explain_false(ATOM)
 
 ******************************************************************************%
 
@@ -153,12 +144,6 @@ has_explanation(Atom) :- explained_by(Atom,_).
 % preliminaries : explain false atoms by well-founded model : end
 
 
-% guess the assumption set and minimize its cardinality
-{assume_false(Atom)} :- false(Atom).
-:~ false(Atom), assume_false(Atom). [1@1, Atom]
-
-% don't explain the target false atom simply by assumption (if possible, otherwise return UNSAT)
-:- explain_false(Atom), assume_false(Atom).
 
 % all atoms need to be explained
 :- true(X), not has_explanation(X).
@@ -221,15 +206,6 @@ explained_by(Atom, (support, Rule)) :-
 % explain false atoms : end
 
 
-#show.
-#show assume_false/1.
-%#show has_explanation/1.
-%#show has_explanation/2.
-%#show explained_by/2.
-%#show @output(Atom, Explanation) : explained_by(Atom, Explanation), not aggregate(Atom).
-
-
-
 % avoid warnings
 rule(0) :- #false.
 choice(0,0,0) :- #false.
@@ -238,7 +214,43 @@ neg_body(0,0) :- #false.
 aggregate(0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
+"""
+
+
+def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
+    res = compute_stable_model("""
+%******************************************************************************
+Compute minimal assumption sets for a program wrt. an answer set. If the atom
+to explain is false, the considered assumption sets will not assume its
+falsity.
+
+__INPUT FORMAT__
+
+Everything from EXPLAIN_ENCODING.
+
+If the atom to explain is false, the input must contain one fact of the form
+- explain_false(ATOM)
+
+******************************************************************************%
+
+
+% guess the assumption set and minimize its cardinality
+{assume_false(Atom)} :- false(Atom).
+:~ false(Atom), assume_false(Atom). [1@1, Atom]
+
+% don't explain the target false atom simply by assumption (if possible, otherwise return UNSAT)
+:- explain_false(Atom), assume_false(Atom).
+
+
+#show.
+#show assume_false/1.
+%#show has_explanation/1.
+%#show has_explanation/2.
+%#show explained_by/2.
+%#show @output(Atom, Explanation) : explained_by(Atom, Explanation), not aggregate(Atom).
+
+% avoid warnings
 explain_false(0) :- #false.
-    """ + process_aggregates(to_be_explained_serialization).as_facts(), context=ComputeMinimalAssumptionSetContext())
+    """ + EXPLAIN_ENCODING + process_aggregates(to_be_explained_serialization).as_facts(), context=ComputeMinimalAssumptionSetContext())
     validate("res", res, help_msg="No stable model. The input is likely wrong.")
     return res
