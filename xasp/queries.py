@@ -1,8 +1,9 @@
 from typing import Optional, Any
 
 import clingo
+import re
 
-from xasp.contexts import ProcessAggregatesContext, ComputeMinimalAssumptionSetContext
+from xasp.contexts import ProcessAggregatesContext, ComputeMinimalAssumptionSetContext, ComputeExplanationContext
 from xasp.primitives import Model
 from xasp.utils import validate
 
@@ -15,10 +16,37 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
 
 
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
-    res = compute_stable_model("""
+    res = compute_stable_model(
+        PROCESS_AGGREGATES_ENCODING + to_be_explained_serialization.as_facts(),
+        context=ProcessAggregatesContext()
+    )
+    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
+    encoding = MINIMAL_ASSUMPTION_SET_ENCODING + EXPLAIN_ENCODING + \
+               process_aggregates(to_be_explained_serialization).as_facts()
+    res = compute_stable_model(encoding, context=ComputeMinimalAssumptionSetContext())
+    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+def compute_explanation(to_be_explained_serialization: Model) -> Model:
+
+
+    assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
+    encoding = EXPLAIN_ENCODING + EXPLANATION_ENCODING + assumption_set.as_facts() + \
+               process_aggregates(to_be_explained_serialization).as_facts()
+    res = compute_stable_model(encoding, context=ComputeExplanationContext())
+    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+PROCESS_AGGREGATES_ENCODING = """
 %******************************************************************************
-Enrich the representation of a program with aggregates so that minimal
-assumption sets can be computed with respect to a program without aggregates.
+Enrich the representation of a program with aggregates so that minimal assumption sets can be computed with respect to 
+a program without aggregates.
 
 
 __RUN__
@@ -102,10 +130,7 @@ agg_set(0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 explain_false(0) :- #false.
-    """ + to_be_explained_serialization.as_facts(), context=ProcessAggregatesContext())
-    validate("res", res, help_msg="No stable model. The input is likely wrong.")
-    return res
-
+"""
 
 EXPLAIN_ENCODING = """
 %******************************************************************************
@@ -180,8 +205,8 @@ explained_by(Atom, (support, Rule)) :-
       false(Atom), not assume_false(Atom);
       rule(Rule), head(Rule,Atom);
       neg_body(Rule,BAtom), true(BAtom), has_explanation(BAtom).
-      
-    
+
+
     % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
     explained_by(Atom, (required_to_falsify_body, Rule)) :-
       false(Atom), not assume_false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (required_to_falsify_body, Rule)} = 0;
@@ -202,7 +227,7 @@ explained_by(Atom, (support, Rule)) :-
       false(BAtom) : neg_body(Rule,BAtom);
       has_explanation(BAtom) : neg_body(Rule,BAtom);
       #count{HAtom : head(Rule, HAtom), true(HAtom), has_explanation(HAtom)} = UpperBound.
-      
+
 % explain false atoms : end
 
 
@@ -216,13 +241,10 @@ true(0) :- #false.
 false(0) :- #false.
 """
 
-
-def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
-    res = compute_stable_model("""
+MINIMAL_ASSUMPTION_SET_ENCODING = """
 %******************************************************************************
-Compute minimal assumption sets for a program wrt. an answer set. If the atom
-to explain is false, the considered assumption sets will not assume its
-falsity.
+Compute minimal assumption sets for a program wrt. an answer set.
+If the atom to explain is false, the considered assumption sets will not assume its falsity.
 
 __INPUT FORMAT__
 
@@ -247,10 +269,36 @@ If the atom to explain is false, the input must contain one fact of the form
 %#show has_explanation/1.
 %#show has_explanation/2.
 %#show explained_by/2.
-%#show @output(Atom, Explanation) : explained_by(Atom, Explanation), not aggregate(Atom).
 
 % avoid warnings
 explain_false(0) :- #false.
-    """ + EXPLAIN_ENCODING + process_aggregates(to_be_explained_serialization).as_facts(), context=ComputeMinimalAssumptionSetContext())
-    validate("res", res, help_msg="No stable model. The input is likely wrong.")
-    return res
+"""
+
+EXPLANATION_ENCODING = """
+%******************************************************************************
+Compute explanation for a program wrt. an answer set and a minimal assumption set.
+
+__INPUT FORMAT__
+
+Everything from EXPLAIN_ENCODING.
+
+For each atom in the minimal assumption set, the input must contain an atom of the form
+- assume_false(ATOM)
+
+******************************************************************************%
+
+
+% inject indexed_explained_by/3 in the loop of explained_by/2
+indexed_explained_by(@index(), Atom, Explanation) :- explained_by(Atom, Explanation), not aggregate(Atom).
+explained_by(Atom, Explanation) :- indexed_explained_by(Index, Atom, Explanation).
+
+#show.
+%#show assume_false/1.
+%#show has_explanation/1.
+%#show has_explanation/2.
+#show indexed_explained_by/3.
+%#show @output(Atom, Explanation) : explained_by(Atom, Explanation), not aggregate(Atom).
+
+% avoid warnings
+assume_false(0) :- #false.
+"""

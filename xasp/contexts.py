@@ -137,3 +137,12 @@ class ComputeMinimalAssumptionSetContext:
                     log.debug(f"source pointer: {head_atom} {rule.id}")
                     source_pointer[head_atom] = rule
                     my_queue.append(head_atom)
+
+
+@dataclasses.dataclass(frozen=True)
+class ComputeExplanationContext(ComputeMinimalAssumptionSetContext):
+    __index: list[int] = dataclasses.field(default_factory=lambda: [0], init=False)
+
+    def index(self):
+        self.__index[0] += 1
+        return Number(self.__index[0])

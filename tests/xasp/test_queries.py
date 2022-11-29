@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set
+from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, compute_explanation
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -167,3 +167,25 @@ def test_compute_minimal_assumption_set(example1, example2, example3):
         assume_false(c).
     """)
 
+
+def test_compute_explanation(example1, example2, example3):
+    model = compute_explanation(example1)
+    assert model == compute_stable_model("""
+        indexed_explained_by(1, c, initial_well_founded).
+        indexed_explained_by(2, a, (support,r1)).
+        indexed_explained_by(3, b, (support,r2)).
+    """)
+    model = compute_explanation(example2)
+    assert model == compute_stable_model("""
+        indexed_explained_by(1, c, initial_well_founded).
+        indexed_explained_by(2, b, initial_well_founded).
+        indexed_explained_by(3, a, (support,r1)).
+    """)
+    model = compute_explanation(example3)
+    assert model == compute_stable_model("""
+        indexed_explained_by(1,c,assumption).
+        indexed_explained_by(2,b,assumption).
+        indexed_explained_by(3,d,lack_of_support).
+        indexed_explained_by(4,body,(support,r1)).
+        indexed_explained_by(5,a,(support,r2)).
+    """)
