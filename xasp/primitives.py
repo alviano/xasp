@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List, Tuple, Any, Optional
+from typing import Any, Optional
 
 import clingo
 import typeguard
@@ -25,7 +25,6 @@ class Model:
         on_model.res = None
 
         control.solve(on_model=on_model)
-        print(on_model.count)
         validate("called once", on_model.count, max_value=1,
                  help_msg="ModelCollect cannot collect more than one model.")
         return on_model.res
