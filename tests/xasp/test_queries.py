@@ -2,7 +2,8 @@ import logging
 
 import pytest
 
-from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, compute_explanation
+from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
+    compute_explanation, compute_explanation_dag
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -173,13 +174,15 @@ def test_compute_explanation(example1, example2, example3):
     assert model == compute_stable_model("""
         indexed_explained_by(1, c, initial_well_founded).
         indexed_explained_by(2, a, (support,r1)).
-        indexed_explained_by(3, b, (support,r2)).
+        indexed_explained_by(3, agg1, (support,agg1)).
+        indexed_explained_by(4, b, (support,r2)).
     """)
     model = compute_explanation(example2)
     assert model == compute_stable_model("""
         indexed_explained_by(1, c, initial_well_founded).
         indexed_explained_by(2, b, initial_well_founded).
-        indexed_explained_by(3, a, (support,r1)).
+        indexed_explained_by(3, agg1, initial_well_founded).
+        indexed_explained_by(4, a, (support,r1)).
     """)
     model = compute_explanation(example3)
     assert model == compute_stable_model("""
@@ -188,4 +191,30 @@ def test_compute_explanation(example1, example2, example3):
         indexed_explained_by(3,d,lack_of_support).
         indexed_explained_by(4,body,(support,r1)).
         indexed_explained_by(5,a,(support,r2)).
+    """)
+
+
+def test_compute_explanation_dag(example1, example2, example3):
+    model = compute_explanation_dag(example1)
+    assert model == compute_stable_model("""
+        link(1,c,initial_well_founded,false).
+        link(2,a,(support,r1),true).
+        link(3,agg1,(support,agg1),(a,true)).
+        link(3,agg1,(support,agg1),(c,false)).
+        link(4,b,(support,r2),(agg1,true)).
+    """)
+    model = compute_explanation_dag(example2)
+    assert model == compute_stable_model("""
+        link(1,c,initial_well_founded,false).
+        link(2,b,initial_well_founded,false).
+        link(3,agg1,initial_well_founded,false).
+        link(4,a,(support,r1),true).
+    """)
+    model = compute_explanation_dag(example3)
+    assert model == compute_stable_model("""
+        link(1,c,assumption,false).
+        link(2,b,assumption,false).
+        link(3,d,(lack_of_support,r3),(b,false)).
+        link(4,body,(support,r1),true).
+        link(5,a,(support,r2),(body,true)).
     """)

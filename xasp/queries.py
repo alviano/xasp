@@ -1,7 +1,6 @@
-from typing import Optional, Any
+from typing import Optional, Any, Final
 
 import clingo
-import re
 
 from xasp.contexts import ProcessAggregatesContext, ComputeMinimalAssumptionSetContext, ComputeExplanationContext
 from xasp.primitives import Model
@@ -33,17 +32,24 @@ def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Mode
 
 
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
-
-
     assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
-    encoding = EXPLAIN_ENCODING + EXPLANATION_ENCODING + assumption_set.as_facts() + \
+    encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + assumption_set.as_facts() + \
                process_aggregates(to_be_explained_serialization).as_facts()
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
     validate("res", res, help_msg="No stable model. The input is likely wrong.")
     return res
 
 
-PROCESS_AGGREGATES_ENCODING = """
+def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
+    explanation = compute_explanation(to_be_explained_serialization)
+    encoding = EXPLANATION_DAG_ENCODING + explanation.as_facts() + \
+               process_aggregates(to_be_explained_serialization).as_facts()
+    res = compute_stable_model(encoding, context=ComputeExplanationContext())
+    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+PROCESS_AGGREGATES_ENCODING: Final = """
 %******************************************************************************
 Enrich the representation of a program with aggregates so that minimal assumption sets can be computed with respect to 
 a program without aggregates.
@@ -132,7 +138,7 @@ false(0) :- #false.
 explain_false(0) :- #false.
 """
 
-EXPLAIN_ENCODING = """
+EXPLAIN_ENCODING: Final = """
 %******************************************************************************
 __INPUT FORMAT__
 
@@ -210,7 +216,7 @@ explained_by(Atom, (support, Rule)) :-
     % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
     explained_by(Atom, (required_to_falsify_body, Rule)) :-
       false(Atom), not assume_false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (required_to_falsify_body, Rule)} = 0;
-      rule(Rule), pos_body(Rule,Atom);
+      rule(Rule), not choice(Rule,_,_), pos_body(Rule,Atom);
       false(HAtom) : head(Rule,HAtom);
       has_explanation(HAtom) : head(Rule,HAtom);
       true(BAtom) : pos_body(Rule,BAtom), BAtom != Atom;
@@ -241,7 +247,7 @@ true(0) :- #false.
 false(0) :- #false.
 """
 
-MINIMAL_ASSUMPTION_SET_ENCODING = """
+MINIMAL_ASSUMPTION_SET_ENCODING: Final = """
 %******************************************************************************
 Compute minimal assumption sets for a program wrt. an answer set.
 If the atom to explain is false, the considered assumption sets will not assume its falsity.
@@ -274,7 +280,7 @@ If the atom to explain is false, the input must contain one fact of the form
 explain_false(0) :- #false.
 """
 
-EXPLANATION_ENCODING = """
+EXPLANATION_ENCODING: Final = """
 %******************************************************************************
 Compute explanation for a program wrt. an answer set and a minimal assumption set.
 
@@ -289,7 +295,7 @@ For each atom in the minimal assumption set, the input must contain an atom of t
 
 
 % inject indexed_explained_by/3 in the loop of explained_by/2
-indexed_explained_by(@index(), Atom, Explanation) :- explained_by(Atom, Explanation), not aggregate(Atom).
+indexed_explained_by(@index(), Atom, Explanation) :- explained_by(Atom, Explanation).  %, not aggregate(Atom).
 explained_by(Atom, Explanation) :- indexed_explained_by(Index, Atom, Explanation).
 
 #show.
@@ -301,4 +307,101 @@ explained_by(Atom, Explanation) :- indexed_explained_by(Index, Atom, Explanation
 
 % avoid warnings
 assume_false(0) :- #false.
+"""
+
+EXPLANATION_DAG_ENCODING: Final = """
+%******************************************************************************
+Compute explanation for a program wrt. an answer set and a minimal assumption set.
+
+__INPUT FORMAT__
+
+Each rule of the program is encoded by facts of the form
+- rule(RULE_ID)
+- head(RULE_ID, ATOM)
+- pos_body(RULE_ID, ATOM|AGGREGATE)
+- neg_body(RULE_ID, ATOM)
+- choice(RULE_ID, LOWER_BOUND, UPPER_BOUND)
+
+Aggregates are identified by facts of the form
+- aggregate(AGGREGATE)
+
+The answer set is encoded by facts of the form
+- true(ATOM|AGGREGATE)
+- false(ATOM|AGGREGATE)
+
+For each atom in the answer set, the input must contain an atom of the form
+- indexed_explained_by(INDEX, ATOM, REASON)
+  where REASON is one of
+  - assumption
+  - initial_well_founded
+  - (support, RULE)
+  - lack_of_support
+  - (required_to_falsify_body, Rule)
+  - (choice_rule, Rule)
+******************************************************************************%
+
+link(Index, Atom, assumption, false) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = assumption.
+
+link(Index, Atom, initial_well_founded, false) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = initial_well_founded.
+
+link(Index, Atom, (support, Rule), true) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (support, Rule);
+    #count{BAtom : pos_body(Rule, BAtom); BAtom : neg_body(Rule, BAtom)} = 0.
+link(Index, Atom, (support, Rule), (BAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (support, Rule);
+    pos_body(Rule, BAtom).
+link(Index, Atom, (support, Rule), (BAtom, false)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (support, Rule);
+    neg_body(Rule, BAtom).
+
+link(Index, Atom, lack_of_support, false) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = lack_of_support;
+    #count{Rule : head(Rule, Atom)} = 0.
+link(Index, Atom, (lack_of_support, Rule), (BAtom, false)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = lack_of_support;
+    head(Rule, Atom), pos_body(Rule, BAtom).
+link(Index, Atom, (lack_of_support, Rule), (BAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = lack_of_support;
+    head(Rule, Atom), neg_body(Rule, BAtom).
+
+link(Index, Atom, (required_to_falsify_body, Rule), false) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (required_to_falsify_body, Rule);
+    #count{HAtom : head(Rule, HAtom); BAtom: pos_body(Rule, BAtom); BAtom: neg_body(Rule, BAtom)} = 0.
+link(Index, Atom, (required_to_falsify_body, Rule), (HAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (required_to_falsify_body, Rule);
+    head(Rule, HAtom).
+link(Index, Atom, (required_to_falsify_body, Rule), (BAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (required_to_falsify_body, Rule);
+    pos_body(Rule, BAtom).
+link(Index, Atom, (required_to_falsify_body, Rule), (BAtom, false)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (required_to_falsify_body, Rule);
+    neg_body(Rule, BAtom).
+
+link(Index, Atom, (choice_rule, Rule), false) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (required_to_falsify_body, Rule);
+    #count{HAtom : head(Rule, HAtom), true(HAtom); BAtom: pos_body(Rule, BAtom); BAtom: neg_body(Rule, BAtom)} = 0.
+link(Index, Atom, (choice_rule, Rule), (HAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (choice_rule, Rule);
+    head(Rule, HAtom), true(HAtom).
+link(Index, Atom, (choice_rule, Rule), (BAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (choice_rule, Rule);
+    pos_body(Rule, BAtom).
+link(Index, Atom, (choice_rule, Rule), (BAtom, false)) :- indexed_explained_by(Index, Atom, Reason);
+    Reason = (choice_rule, Rule);
+    neg_body(Rule, BAtom).
+
+#show.
+#show link/4.
+
+% avoid warnings
+rule(0) :- #false.
+choice(0,0,0) :- #false.
+pos_body(0,0) :- #false.
+neg_body(0,0) :- #false.
+aggregate(0) :- #false.
+true(0) :- #false.
+false(0) :- #false.
+indexed_explained_by(0,0,0) :- #false.
 """
