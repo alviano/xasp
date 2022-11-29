@@ -28,3 +28,10 @@ def test_model_of_control_cannot_be_used_for_more_than_one_model():
     control.ground([("base", [])])
     with pytest.raises(ValueError):
         Model.of(control)
+
+
+def test_model_as_facts():
+    control = clingo.Control()
+    control.add("base", [], "a. b. c.")
+    control.ground([("base", [])])
+    assert Model.of(control).as_facts() == "a.\nb.\nc."

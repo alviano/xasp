@@ -19,7 +19,8 @@ class Model:
     def of(control: clingo.Control) -> Optional["Model"]:
         def on_model(model):
             on_model.count += 1
-            on_model.res = Model(key=Model.__key, value=tuple(sorted(x for x in model.symbols(shown=True))))
+            on_model.res = Model(key=Model.__key, value=tuple(sorted((x for x in model.symbols(shown=True)),
+                                                                     key=lambda atom: str(atom))))
         on_model.count = 0
         on_model.res = None
 
@@ -44,3 +45,6 @@ class Model:
 
     def __iter__(self):
         return self.value.__iter__()
+
+    def as_facts(self) -> str:
+        return '\n'.join(f"{atom}." for atom in self)
