@@ -361,10 +361,20 @@ link(Index, Atom, lack_of_support, false) :- indexed_explained_by(Index, Atom, R
     #count{Rule : head(Rule, Atom)} = 0.
 link(Index, Atom, (lack_of_support, Rule), (BAtom, false)) :- indexed_explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
-    head(Rule, Atom), pos_body(Rule, BAtom).
+    head(Rule, Atom);
+    FirstIndex = #min{
+        Index' : pos_body(Rule, BAtom'), false(BAtom'), indexed_explained_by(Index', BAtom', _);
+        Index' : neg_body(Rule, BAtom'), true(BAtom'),  indexed_explained_by(Index', BAtom', _)
+    };
+    indexed_explained_by(FirstIndex, BAtom, _), pos_body(Rule, BAtom).
 link(Index, Atom, (lack_of_support, Rule), (BAtom, true)) :- indexed_explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
-    head(Rule, Atom), neg_body(Rule, BAtom).
+    head(Rule, Atom);
+    FirstIndex = #min{
+        Index' : pos_body(Rule, BAtom'), false(BAtom'), indexed_explained_by(Index', BAtom', _);
+        Index' : neg_body(Rule, BAtom'), true(BAtom'),  indexed_explained_by(Index', BAtom', _)
+    };
+    indexed_explained_by(FirstIndex, BAtom, _), neg_body(Rule, BAtom).
 
 link(Index, Atom, (required_to_falsify_body, Rule), false) :- indexed_explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);

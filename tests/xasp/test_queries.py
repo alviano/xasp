@@ -115,6 +115,85 @@ false(d).
     """)
 
 
+@pytest.fixture
+def example4():
+    return compute_stable_model("""
+%* program
+
+(r1)    {a(1); a(2)}.
+(r2)    {b(X)} :- a(X).
+(r3)    c(X) :- a(X), not b(X).
+
+*%
+
+
+rule(r1).
+  choice(r1, 0, 2).
+  head(r1,a(1)).
+  head(r1,a(2)).
+
+rule((r2,X)) :- atom(a(X)).
+  choice((r2,X), 0, 1) :- rule((r2,X)).
+  head((r2,X),b(X)) :- rule((r2,X)).
+  pos_body((r2,X),a(X)) :- rule((r2,X)).
+
+rule((r3,X)) :- atom(a(X)), atom(b(X)).
+  head((r3,X),c(X)) :- rule((r3,X)).
+  pos_body((r3,X),a(X)) :- rule((r3,X)).
+  neg_body((r3,X),b(X)) :- rule((r3,X)).
+
+% answer set: a(1) a(2) b(1) c(2)
+true(a(1)).
+true(a(2)).
+true(b(1)).
+false(b(2)).
+false(c(1)).
+true(c(2)).
+atom(Atom) :- true(Atom).
+atom(Atom) :- false(Atom).
+    """)
+
+
+@pytest.fixture
+def example5():
+    return compute_stable_model("""
+%* program
+
+(r1)    a(1).
+(r2)    {b(X,0); b(X,1)} :- a(X).
+(r3)    c :- a(X), #sum{Y : b(X,Y)} >= X.
+
+*%
+
+
+rule(r1).
+  head(r1,a(1)).
+
+rule(r2(X)) :- atom(a(X)).
+  choice(r2(X), 0, 2) :- rule(r2(X)).
+  head(r2(X),b(X,0)) :- rule(r2(X)).
+  head(r2(X),b(X,1)) :- rule(r2(X)).
+  pos_body(r2(X),a(X)) :- rule(r2(X)).
+
+rule(r3(X)) :- atom(a(X)).  %, #sum{Y : true(b(X,Y))} >= X.
+  head(r3(X),c) :- rule(r3(X)).
+  pos_body(r3(X),a(X)) :- rule(r3(X)).
+  pos_body(r3(X),aggr1(X)) :- rule(r3(X)).
+
+aggregate(aggr1(X), sum, ">=", X) :- rule(r3(X)).
+  agg_set(aggr1(X), b(X,Y), Y) :- rule(r3(X)), atom(b(X,Y)).
+  
+  
+% answer set: a(1) b(1,0)
+true(a(1)).
+true(b(1,0)).
+false(b(1,1)).
+false(c).
+atom(Atom) :- true(Atom).
+atom(Atom) :- false(Atom).
+    """)
+
+
 def test_process_true_aggregate(example1):
     model = process_aggregates(example1)
     assert model.as_facts() == '\n'.join(sorted([
@@ -218,3 +297,51 @@ def test_compute_explanation_dag(example1, example2, example3):
         link(4,body,(support,r1),true).
         link(5,a,(support,r2),(body,true)).
     """)
+
+
+def test_deal_with_symbolic_program(example4):
+    model = compute_minimal_assumption_set(example4)
+    assert model == compute_stable_model("assume_false(b(2)).")
+    model = compute_explanation(example4)
+    assert model == compute_stable_model("""
+        indexed_explained_by(1,b(2),assumption).
+        indexed_explained_by(2,c(1),initial_well_founded).
+        indexed_explained_by(3,a(1),(support,r1)).
+        indexed_explained_by(4,a(2),(support,r1)).
+        indexed_explained_by(5,b(1),(support,(r2,1))).
+        indexed_explained_by(6,c(2),(support,(r3,2))).
+    """)
+    model = compute_explanation_dag(example4)
+    assert model == compute_stable_model("""
+        link(1,b(2),assumption,false).
+        link(2,c(1),initial_well_founded,false).
+        link(3,a(1),(support,r1),true).
+        link(4,a(2),(support,r1),true).
+        link(5,b(1),(support,(r2,1)),(a(1),true)).
+        link(6,c(2),(support,(r3,2)),(a(2),true)).
+        link(6,c(2),(support,(r3,2)),(b(2),false)).
+    """)
+
+
+def test_deal_with_symbolic_program_and_aggregates(example5):
+    model = compute_minimal_assumption_set(example5)
+    assert model == compute_stable_model("assume_false(b(1,1)).")
+    model = compute_explanation(example5)
+    assert model == compute_stable_model("""
+        indexed_explained_by(1,b(1,1),assumption).
+        indexed_explained_by(2,a(1),(support,r1)).
+        indexed_explained_by(3,b(1,0),(support,r2(1))).
+        indexed_explained_by(4,aggr1(1),lack_of_support).
+        indexed_explained_by(5,c,lack_of_support).
+    """)
+    model = compute_explanation_dag(example5)
+    assert model == compute_stable_model("""
+        link(1,b(1,1),assumption,false).
+        link(2,a(1),(support,r1),true).
+        link(3,b(1,0),(support,r2(1)),(a(1),true)).
+        link(4,aggr1(1),(lack_of_support,(aggr1(1),b(1,0))),(b(1,0),true)).
+        link(4,aggr1(1),(lack_of_support,(aggr1(1),b(1,1))),(b(1,1),false)).
+        link(5,c,(lack_of_support,r3(1)),(aggr1(1),false)).
+    """)
+
+

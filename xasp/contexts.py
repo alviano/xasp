@@ -73,6 +73,7 @@ class ComputeMinimalAssumptionSetContext:
 
     @cached_property
     def well_founded_model(self) -> 'ComputeMinimalAssumptionSetContext.WellFoundedModel':
+        log.debug("Compute well-founded model: begin")
         well_founded_model = self.WellFoundedModel(
             set(),
             set().union(*(rule.head for rule in self.rules.values() if rule.head))
@@ -91,7 +92,7 @@ class ComputeMinimalAssumptionSetContext:
                 assert true_atom in well_founded_model.potentially_true
 
                 well_founded_model.true.add(true_atom)
-                log.debug(f"true: {true_atom}")
+                log.debug(f"founded: {true_atom}")
                 for rule in self.atom2pos_bodies[true_atom]:
                     if all(atom in well_founded_model.true for atom in rule.pos_body) and \
                             all(atom not in well_founded_model.potentially_true for atom in rule.neg_body):
@@ -113,9 +114,10 @@ class ComputeMinimalAssumptionSetContext:
                 break
 
             for unfounded_atom in unfounded_atoms:
-                log.debug(f"false: {unfounded_atom}")
+                log.debug(f"unfounded: {unfounded_atom}")
                 assert unfounded_atom not in well_founded_model.true
                 well_founded_model.potentially_true.remove(unfounded_atom)
+        log.debug("Compute well-founded model: begin")
         return well_founded_model
 
     @staticmethod
