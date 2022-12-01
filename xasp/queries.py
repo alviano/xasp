@@ -4,6 +4,7 @@ import clingo
 
 from xasp.contexts import ProcessAggregatesContext, ComputeMinimalAssumptionSetContext, ComputeExplanationContext
 from xasp.primitives import Model
+from xasp.transformers import ProgramSerializerTransformer
 from xasp.utils import validate
 
 
@@ -12,6 +13,16 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     control.add("base", [], asp_program)
     control.ground([("base", [])], context=context)
     return Model.of(control)
+
+
+def compute_serialization(asp_program: str, true_atoms: str, false_atoms: str) -> Model:
+    transformer = ProgramSerializerTransformer()
+    transformed_program = transformer.apply(asp_program)
+    return compute_stable_model(
+        SERIALIZATION_ENCODING + transformed_program +
+        '\n'.join(f"true({atom})." for atom in true_atoms.split()) +
+        '\n'.join(f"false({atom})." for atom in false_atoms.split())
+    )
 
 
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
@@ -129,6 +140,7 @@ neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Aggr,Atom,Weight), tr
 % avoid warnings
 rule(0) :- #false.
 choice(0,0,0) :- #false.
+head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
 aggregate(0,0,0,0) :- #false.
@@ -240,9 +252,11 @@ explained_by(Atom, (support, Rule)) :-
 % avoid warnings
 rule(0) :- #false.
 choice(0,0,0) :- #false.
+head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
-aggregate(0) :- #false.
+aggregate(0,0,0,0) :- #false.
+agg_set(0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 """
@@ -272,9 +286,6 @@ If the atom to explain is false, the input must contain one fact of the form
 
 #show.
 #show assume_false/1.
-%#show has_explanation/1.
-%#show has_explanation/2.
-%#show explained_by/2.
 
 % avoid warnings
 explain_false(0) :- #false.
@@ -299,11 +310,7 @@ indexed_explained_by(@index(), Atom, Explanation) :- explained_by(Atom, Explanat
 explained_by(Atom, Explanation) :- indexed_explained_by(Index, Atom, Explanation).
 
 #show.
-%#show assume_false/1.
-%#show has_explanation/1.
-%#show has_explanation/2.
 #show indexed_explained_by/3.
-%#show @output(Atom, Explanation) : explained_by(Atom, Explanation), not aggregate(Atom).
 
 % avoid warnings
 assume_false(0) :- #false.
@@ -408,10 +415,39 @@ link(Index, Atom, (choice_rule, Rule), (BAtom, false)) :- indexed_explained_by(I
 % avoid warnings
 rule(0) :- #false.
 choice(0,0,0) :- #false.
+head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
-aggregate(0) :- #false.
+aggregate(0,0,0,0) :- #false.
+agg_set(0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 indexed_explained_by(0,0,0) :- #false.
+"""
+
+SERIALIZATION_ENCODING: Final = """
+atom(Atom) :- true(Atom).
+atom(Atom) :- false(Atom).
+
+#show.
+#show rule/1.
+#show choice/3.
+#show head/2.
+#show pos_body/2.
+#show neg_body/2.
+#show aggregate/4.
+#show agg_set/3.
+#show true/1.
+#show false/1.
+
+% avoid warnings
+rule(0) :- #false.
+head(0,0) :- #false.
+choice(0,0,0) :- #false.
+pos_body(0,0) :- #false.
+neg_body(0,0) :- #false.
+aggregate(0,0,0,0) :- #false.
+agg_set(0,0,0) :- #false.
+true(0) :- #false.
+false(0) :- #false.
 """

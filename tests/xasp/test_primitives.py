@@ -35,3 +35,10 @@ def test_model_as_facts():
     control.add("base", [], "a. b. c.")
     control.ground([("base", [])])
     assert Model.of(control).as_facts() == "a.\nb.\nc."
+
+
+def test_model_drop():
+    control = clingo.Control()
+    control.add("base", [], "a. b. c.")
+    control.ground([("base", [])])
+    assert Model.of(control).drop("a").as_facts() == "b.\nc."

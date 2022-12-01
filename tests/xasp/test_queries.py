@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
-    compute_explanation, compute_explanation_dag
+    compute_explanation, compute_explanation_dag, compute_serialization
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -17,6 +17,26 @@ def test_compute_stable_model():
 def test_compute_stable_may_return_none():
     model = compute_stable_model("a :- not a.")
     assert model is None
+
+
+def test_compute_program_serialization():
+    model = compute_serialization("""
+        a.
+        b :- a, not c.
+    """, true_atoms="a b", false_atoms="c")
+    assert model == compute_stable_model("""
+        rule(r1).
+          head(r1,a).
+        
+        rule(r2).
+          head(r2,b).
+          pos_body(r2,a).
+          neg_body(r2,c).
+      
+        true(a).
+        true(b).
+        false(c).
+    """)
 
 
 @pytest.fixture
@@ -132,15 +152,15 @@ rule(r1).
   head(r1,a(1)).
   head(r1,a(2)).
 
-rule((r2,X)) :- atom(a(X)).
-  choice((r2,X), 0, 1) :- rule((r2,X)).
-  head((r2,X),b(X)) :- rule((r2,X)).
-  pos_body((r2,X),a(X)) :- rule((r2,X)).
+rule(r2(X)) :- atom(a(X)).
+  choice(r2(X), 0, 1) :- rule(r2(X)).
+  head(r2(X),b(X)) :- rule(r2(X)).
+  pos_body(r2(X),a(X)) :- rule(r2(X)).
 
-rule((r3,X)) :- atom(a(X)), atom(b(X)).
-  head((r3,X),c(X)) :- rule((r3,X)).
-  pos_body((r3,X),a(X)) :- rule((r3,X)).
-  neg_body((r3,X),b(X)) :- rule((r3,X)).
+rule(r3(X)) :- atom(a(X)), atom(b(X)).
+  head(r3(X),c(X)) :- rule(r3(X)).
+  pos_body(r3(X),a(X)) :- rule(r3(X)).
+  neg_body(r3(X),b(X)) :- rule(r3(X)).
 
 % answer set: a(1) a(2) b(1) c(2)
 true(a(1)).
@@ -151,7 +171,7 @@ false(c(1)).
 true(c(2)).
 atom(Atom) :- true(Atom).
 atom(Atom) :- false(Atom).
-    """)
+    """).drop("atom")
 
 
 @pytest.fixture
@@ -178,10 +198,10 @@ rule(r2(X)) :- atom(a(X)).
 rule(r3(X)) :- atom(a(X)).  %, #sum{Y : true(b(X,Y))} >= X.
   head(r3(X),c) :- rule(r3(X)).
   pos_body(r3(X),a(X)) :- rule(r3(X)).
-  pos_body(r3(X),aggr1(X)) :- rule(r3(X)).
+  pos_body(r3(X),agg1(X)) :- rule(r3(X)).
 
-aggregate(aggr1(X), sum, ">=", X) :- rule(r3(X)).
-  agg_set(aggr1(X), b(X,Y), Y) :- rule(r3(X)), atom(b(X,Y)).
+aggregate(agg1(X), sum, ">=", X) :- rule(r3(X)).
+  agg_set(agg1(X), b(X,Y), Y) :- rule(r3(X)), atom(b(X,Y)).
   
   
 % answer set: a(1) b(1,0)
@@ -191,7 +211,7 @@ false(b(1,1)).
 false(c).
 atom(Atom) :- true(Atom).
 atom(Atom) :- false(Atom).
-    """)
+    """).drop("atom")
 
 
 def test_process_true_aggregate(example1):
@@ -303,13 +323,14 @@ def test_deal_with_symbolic_program(example4):
     model = compute_minimal_assumption_set(example4)
     assert model == compute_stable_model("assume_false(b(2)).")
     model = compute_explanation(example4)
+    print(model.as_facts())
     assert model == compute_stable_model("""
         indexed_explained_by(1,b(2),assumption).
         indexed_explained_by(2,c(1),initial_well_founded).
         indexed_explained_by(3,a(1),(support,r1)).
         indexed_explained_by(4,a(2),(support,r1)).
-        indexed_explained_by(5,b(1),(support,(r2,1))).
-        indexed_explained_by(6,c(2),(support,(r3,2))).
+        indexed_explained_by(5,b(1),(support,r2(1))).
+        indexed_explained_by(6,c(2),(support,r3(2))).
     """)
     model = compute_explanation_dag(example4)
     assert model == compute_stable_model("""
@@ -317,9 +338,9 @@ def test_deal_with_symbolic_program(example4):
         link(2,c(1),initial_well_founded,false).
         link(3,a(1),(support,r1),true).
         link(4,a(2),(support,r1),true).
-        link(5,b(1),(support,(r2,1)),(a(1),true)).
-        link(6,c(2),(support,(r3,2)),(a(2),true)).
-        link(6,c(2),(support,(r3,2)),(b(2),false)).
+        link(5,b(1),(support,r2(1)),(a(1),true)).
+        link(6,c(2),(support,r3(2)),(a(2),true)).
+        link(6,c(2),(support,r3(2)),(b(2),false)).
     """)
 
 
@@ -331,7 +352,7 @@ def test_deal_with_symbolic_program_and_aggregates(example5):
         indexed_explained_by(1,b(1,1),assumption).
         indexed_explained_by(2,a(1),(support,r1)).
         indexed_explained_by(3,b(1,0),(support,r2(1))).
-        indexed_explained_by(4,aggr1(1),lack_of_support).
+        indexed_explained_by(4,agg1(1),lack_of_support).
         indexed_explained_by(5,c,lack_of_support).
     """)
     model = compute_explanation_dag(example5)
@@ -339,9 +360,27 @@ def test_deal_with_symbolic_program_and_aggregates(example5):
         link(1,b(1,1),assumption,false).
         link(2,a(1),(support,r1),true).
         link(3,b(1,0),(support,r2(1)),(a(1),true)).
-        link(4,aggr1(1),(lack_of_support,(aggr1(1),b(1,0))),(b(1,0),true)).
-        link(4,aggr1(1),(lack_of_support,(aggr1(1),b(1,1))),(b(1,1),false)).
-        link(5,c,(lack_of_support,r3(1)),(aggr1(1),false)).
+        link(4,agg1(1),(lack_of_support,(agg1(1),b(1,0))),(b(1,0),true)).
+        link(4,agg1(1),(lack_of_support,(agg1(1),b(1,1))),(b(1,1),false)).
+        link(5,c,(lack_of_support,r3(1)),(agg1(1),false)).
     """)
 
 
+def test_serialization_with_propositional_aggregates(example1, example2, example3):
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", true_atoms="a b", false_atoms="c") == example1
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", true_atoms="a", false_atoms="b c") == example2
+    assert compute_serialization("body.  1 <= {a; b; c} <= 2 :- body.  d :- b.",
+                                 true_atoms="body a", false_atoms="b c d") == example3
+
+
+def test_serialization_with_symbolic_program(example4, example5):
+    assert compute_serialization("""
+        {a(1); a(2)}.
+        {b(X)} :- a(X).
+        c(X) :- a(X), not b(X).
+    """, true_atoms="a(1) a(2) b(1) c(2)", false_atoms="b(2) c(1)") == example4
+    assert compute_serialization("""
+        a(1).
+        {b(X,0); b(X,1)} :- a(X).
+        c :- a(X), #sum{Y : b(X,Y)} >= X.
+    """, true_atoms="a(1) b(1,0)", false_atoms="b(1,1) c") == example5

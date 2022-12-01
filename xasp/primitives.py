@@ -47,3 +47,6 @@ class Model:
 
     def as_facts(self) -> str:
         return '\n'.join(f"{atom}." for atom in self)
+
+    def drop(self, predicate: str) -> "Model":
+        return Model(key=self.__key, value=tuple(atom for atom in self if atom.name != predicate))
