@@ -323,7 +323,6 @@ def test_deal_with_symbolic_program(example4):
     model = compute_minimal_assumption_set(example4)
     assert model == compute_stable_model("assume_false(b(2)).")
     model = compute_explanation(example4)
-    print(model.as_facts())
     assert model == compute_stable_model("""
         indexed_explained_by(1,b(2),assumption).
         indexed_explained_by(2,c(1),initial_well_founded).

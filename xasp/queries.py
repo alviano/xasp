@@ -15,13 +15,15 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     return Model.of(control)
 
 
-def compute_serialization(asp_program: str, true_atoms: str, false_atoms: str) -> Model:
+def compute_serialization(asp_program: str, true_atoms: str, false_atoms: str,
+                          false_atom_to_explain: Optional[str] = None) -> Model:
     transformer = ProgramSerializerTransformer()
     transformed_program = transformer.apply(asp_program)
     return compute_stable_model(
         SERIALIZATION_ENCODING + transformed_program +
         '\n'.join(f"true({atom})." for atom in true_atoms.split()) +
-        '\n'.join(f"false({atom})." for atom in false_atoms.split())
+        '\n'.join(f"false({atom})." for atom in false_atoms.split()) +
+        ('' if false_atom_to_explain is None else f"explain_false({false_atom_to_explain}).")
     )
 
 
