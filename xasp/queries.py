@@ -1,4 +1,4 @@
-from typing import Optional, Any, Final
+from typing import Optional, Any, Final, List
 
 import clingo
 
@@ -15,14 +15,14 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     return Model.of(control)
 
 
-def compute_serialization(asp_program: str, true_atoms: str, false_atoms: str,
+def compute_serialization(asp_program: str, true_atoms: List[str], false_atoms: List[str],
                           false_atom_to_explain: Optional[str] = None) -> Model:
     transformer = ProgramSerializerTransformer()
     transformed_program = transformer.apply(asp_program)
     return compute_stable_model(
         SERIALIZATION_ENCODING + transformed_program +
-        '\n'.join(f"true({atom})." for atom in true_atoms.split()) +
-        '\n'.join(f"false({atom})." for atom in false_atoms.split()) +
+        '\n'.join(f"true({atom})." for atom in true_atoms) +
+        '\n'.join(f"false({atom})." for atom in false_atoms) +
         ('' if false_atom_to_explain is None else f"explain_false({false_atom_to_explain}).")
     )
 
@@ -213,23 +213,23 @@ explained_by(Atom, (support, Rule)) :-
 
     % false atoms can be explained if all the possibly supporting rules already have an explanation
     explained_by(Atom, lack_of_support) :-
-      false(Atom), not assume_false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != lack_of_support} = 0;
-      has_explanation(Atom,Rule) : rule(Rule), head(Rule,Atom).
+      false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != lack_of_support} = 0;
+      false_in_body(Atom,Rule) : rule(Rule), head(Rule,Atom).
 
     % a non-supporting rule is explained if there is some false body literal that already has an explanation
-    has_explanation(Atom,Rule) :-
-      false(Atom), not assume_false(Atom);
+    false_in_body(Atom,Rule) :-
+      false(Atom);
       rule(Rule), head(Rule,Atom);
       pos_body(Rule,BAtom), false(BAtom), has_explanation(BAtom).
-    has_explanation(Atom,Rule) :-
-      false(Atom), not assume_false(Atom);
+    false_in_body(Atom,Rule) :-
+      false(Atom);
       rule(Rule), head(Rule,Atom);
       neg_body(Rule,BAtom), true(BAtom), has_explanation(BAtom).
 
 
     % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
     explained_by(Atom, (required_to_falsify_body, Rule)) :-
-      false(Atom), not assume_false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (required_to_falsify_body, Rule)} = 0;
+      false(Atom), not aggregate(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (required_to_falsify_body, Rule)} = 0;
       rule(Rule), not choice(Rule,_,_), pos_body(Rule,Atom);
       false(HAtom) : head(Rule,HAtom);
       has_explanation(HAtom) : head(Rule,HAtom);
@@ -240,7 +240,7 @@ explained_by(Atom, (support, Rule)) :-
 
     % a false atom can be explained by a choice rule with true body and whose true head atoms already reach the upper bound
     explained_by(Atom, (choice_rule, Rule)) :-
-      false(Atom), not assume_false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (choice_rule, Rule)} = 0;
+      false(Atom), #count{Reason : explained_by(Atom, Reason), Reason != (choice_rule, Rule)} = 0;
       choice(Rule, LowerBound, UpperBound), head(Rule,Atom);
       true(BAtom) : pos_body(Rule,BAtom);
       has_explanation(BAtom) : pos_body(Rule,BAtom);

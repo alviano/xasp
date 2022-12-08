@@ -262,10 +262,16 @@ def test_compute_minimal_assumption_set(example1, example2, example3):
     model = compute_minimal_assumption_set(example2)
     assert len(model) == 0
     model = compute_minimal_assumption_set(example3)
-    assert model == compute_stable_model("""
-        assume_false(b).
-        assume_false(c).
-    """)
+    assert model in [
+        compute_stable_model("""
+            assume_false(b).
+            assume_false(c).
+        """),
+        compute_stable_model("""
+            assume_false(c).
+            assume_false(d).
+        """),
+    ]
 
 
 def test_compute_explanation(example1, example2, example3):
@@ -284,13 +290,22 @@ def test_compute_explanation(example1, example2, example3):
         indexed_explained_by(4, a, (support,r1)).
     """)
     model = compute_explanation(example3)
-    assert model == compute_stable_model("""
-        indexed_explained_by(1,c,assumption).
-        indexed_explained_by(2,b,assumption).
-        indexed_explained_by(3,d,lack_of_support).
-        indexed_explained_by(4,body,(support,r1)).
-        indexed_explained_by(5,a,(support,r2)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            indexed_explained_by(1,c,assumption).
+            indexed_explained_by(2,b,assumption).
+            indexed_explained_by(3,d,lack_of_support).
+            indexed_explained_by(4,body,(support,r1)).
+            indexed_explained_by(5,a,(support,r2)).
+        """),
+        compute_stable_model("""
+            indexed_explained_by(1,d,assumption).
+            indexed_explained_by(2,c,assumption).
+            indexed_explained_by(3,body,(support,r1)).
+            indexed_explained_by(4,b,(required_to_falsify_body,r3)).
+            indexed_explained_by(5,a,(support,r2)).
+        """)
+    ]
 
 
 def test_compute_explanation_dag(example1, example2, example3):
@@ -310,13 +325,23 @@ def test_compute_explanation_dag(example1, example2, example3):
         link(4,a,(support,r1),true).
     """)
     model = compute_explanation_dag(example3)
-    assert model == compute_stable_model("""
-        link(1,c,assumption,false).
-        link(2,b,assumption,false).
-        link(3,d,(lack_of_support,r3),(b,false)).
-        link(4,body,(support,r1),true).
-        link(5,a,(support,r2),(body,true)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            link(1,c,assumption,false).
+            link(2,b,assumption,false).
+            link(3,d,(lack_of_support,r3),(b,false)).
+            link(4,body,(support,r1),true).
+            link(5,a,(support,r2),(body,true)).
+        """),
+        compute_stable_model("""
+            link(1,d,assumption,false).
+            link(2,c,assumption,false).
+            link(3,body,(support,r1),true).
+            link(4,b,(required_to_falsify_body,r3),(b,true)).
+            link(4,b,(required_to_falsify_body,r3),(d,true)).
+            link(5,a,(support,r2),(body,true)).
+        """),
+    ]
 
 
 def test_deal_with_symbolic_program(example4):
@@ -366,10 +391,12 @@ def test_deal_with_symbolic_program_and_aggregates(example5):
 
 
 def test_serialization_with_propositional_aggregates(example1, example2, example3):
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", true_atoms="a b", false_atoms="c") == example1
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", true_atoms="a", false_atoms="b c") == example2
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", true_atoms=["a", "b"],
+                                 false_atoms=["c"]) == example1
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", true_atoms=["a"],
+                                 false_atoms=["b", "c"]) == example2
     assert compute_serialization("body.  1 <= {a; b; c} <= 2 :- body.  d :- b.",
-                                 true_atoms="body a", false_atoms="b c d") == example3
+                                 true_atoms=["body", "a"], false_atoms="b c d".split()) == example3
 
 
 def test_serialization_with_symbolic_program(example4, example5):
@@ -377,9 +404,94 @@ def test_serialization_with_symbolic_program(example4, example5):
         {a(1); a(2)}.
         {b(X)} :- a(X).
         c(X) :- a(X), not b(X).
-    """, true_atoms="a(1) a(2) b(1) c(2)", false_atoms="b(2) c(1)") == example4
+    """, true_atoms="a(1) a(2) b(1) c(2)".split(), false_atoms="b(2) c(1)".split()) == example4
     assert compute_serialization("""
         a(1).
         {b(X,0); b(X,1)} :- a(X).
         c :- a(X), #sum{Y : b(X,Y)} >= X.
-    """, true_atoms="a(1) b(1,0)", false_atoms="b(1,1) c") == example5
+    """, true_atoms="a(1) b(1,0)".split(), false_atoms="b(1,1) c".split()) == example5
+
+
+@pytest.fixture
+def running_example_1():
+    return compute_serialization("""
+        1 <= {arc(X,Y); arc(Y,X)} <= 1 :- edge(X,Y).
+        reach(X,X) :- source(X).
+        reach(X,Y) :- reach(X,Z), arc(Z,Y).
+        fail(X,Y) :- source(X), sink(Y), not reach(X,Y).
+        :- threshold(T), #sum{1,X,Y : fail(X,Y)} > T.
+        
+        edge(a,b).
+        edge(a,d).
+        edge(d,c).
+        
+        source(a).
+        source(b).
+        
+        sink(c).
+        
+        threshold(0).
+    """, true_atoms=[atom.strip() for atom in """
+        edge(a,b)
+        edge(a,d)
+        edge(d,c)
+        source(a)
+        source(b)
+        sink(c)
+        reach(a,a)
+        reach(b,b)
+        reach(b,a)
+        reach(a,d)
+        reach(a,c)
+        reach(b,d)
+        reach(b,c)
+        arc(b,a)
+        arc(a,d)
+        arc(d,c)
+        threshold(0)
+    """.split('\n')], false_atoms=[atom.strip() for atom in """
+        arc(a,b)
+        arc(d,a)
+        arc(c,d)
+        fail(a,c)
+        fail(b,c)
+        reach(a,b)
+        reach(c,a)
+        reach(c,b)
+        reach(c,c)
+        reach(c,d)
+        reach(d,a)
+        reach(d,b)
+        reach(d,c)
+        reach(d,d)
+    """.split('\n')])
+
+
+def test_running_example_1(running_example_1):
+    minimal_assumption_set = compute_minimal_assumption_set(running_example_1)
+    assert len(minimal_assumption_set) == 0
+    explanation = compute_explanation(running_example_1)
+    print(explanation.as_facts())
+    assert len(explanation) == 32
+    assert False
+
+
+def test_process_aggregate_with_variables():
+    assert compute_serialization("""
+        :- a(X), #sum{Y : b(X,Y)} > 0.
+    """, true_atoms="a(1) a(2) b(1,2)".split(), false_atoms=["b(2,1)"]) == compute_stable_model("""
+        rule(r1(1)).
+            pos_body(r1(1), a(1)).
+            pos_body(r1(1), agg1(1)).
+            aggregate(agg1(1), sum, ">", 0).
+            agg_set(agg1(1), b(1,2), 2).
+        rule(r1(2)).
+            pos_body(r1(2), a(2)).
+            pos_body(r1(2), agg1(2)).
+            aggregate(agg1(2), sum, ">", 0).
+            agg_set(agg1(2), b(2,1), 1).
+        true(a(1)).
+        true(a(2)).
+        true(b(1,2)).
+        false(b(2,1)).
+    """)

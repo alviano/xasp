@@ -110,8 +110,8 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         validate("left guard", literal.atom.left_guard.comparison != ComparisonOperator.NotEqual, equals=True)
         self.__agg_index += 1
         agg_id, fun = f"agg{self.__agg_index}", literal.atom.function
-        if literal.atom.left_guard.term.ast_type == ASTType.Variable:
-            agg_id = f"{agg_id}({literal.atom.left_guard.term})"
+        if self.__variables:
+            agg_id = f"{agg_id}({','.join(sorted(self.__variables))})"
         self.__result.append(f"pos_body({rule_id},{agg_id}) :- {rule_atom}.")
         if fun == AggregateFunction.Sum:
             fun = "sum"

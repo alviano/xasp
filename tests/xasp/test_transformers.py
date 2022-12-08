@@ -230,7 +230,7 @@ def test_transform_symbolic_rule_with_aggregate(transformer):
         rule(r1(X,Y)) :- atom(b(X,Y)).
             head(r1(X,Y),a(X)) :- rule(r1(X,Y)).
             pos_body(r1(X,Y),b(X,Y)) :- rule(r1(X,Y)).
-            pos_body(r1(X,Y),agg1(Y)) :- rule(r1(X,Y)).
-        aggregate(agg1(Y),sum,"=",Y) :- rule(r1(X,Y)).
-            agg_set(agg1(Y),c(X,Y,Z),Z) :- rule(r1(X,Y)), atom(c(X,Y,Z)).
+            pos_body(r1(X,Y),agg1(X,Y)) :- rule(r1(X,Y)).
+        aggregate(agg1(X,Y),sum,"=",Y) :- rule(r1(X,Y)).
+            agg_set(agg1(X,Y),c(X,Y,Z),Z) :- rule(r1(X,Y)), atom(c(X,Y,Z)).
     """)
