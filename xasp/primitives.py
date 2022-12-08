@@ -18,15 +18,18 @@ class Model:
     @staticmethod
     def of(control: clingo.Control) -> Optional["Model"]:
         def on_model(model):
-            on_model.count += 1
+            if on_model.cost is not None and on_model.cost <= model.cost:
+                on_model.exception = True
+            on_model.cost = model.cost
             on_model.res = Model(key=Model.__key, value=tuple(sorted((x for x in model.symbols(shown=True)),
                                                                      key=lambda atom: str(atom))))
-        on_model.count = 0
+        on_model.cost = None
         on_model.res = None
+        on_model.exception = False
 
         control.solve(on_model=on_model)
-        validate("called once", on_model.count, max_value=1,
-                 help_msg="ModelCollect cannot collect more than one model.")
+        if on_model.exception:
+            raise ValueError("more than one stable model")
         return on_model.res
 
     def __post_init__(self, key: Any):

@@ -133,8 +133,9 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
             validate("condition", element.condition, length=1)
             validate("condition", element.condition[0].sign, equals=Sign.NoSign)
             validate("terms", element.terms, min_len=1)
+            terms = [str(term) for term in element.terms]
             self.__result.append(
-                f"agg_set({agg_id},{element.condition[0]},{element.terms[0]},({','.join(element.terms[1:])})) :- "
+                f"agg_set({agg_id},{element.condition[0]},{terms[0]},({','.join(terms[1:])})) :- "
                 f"{rule_atom}, atom({element.condition[0]})."
             )
 

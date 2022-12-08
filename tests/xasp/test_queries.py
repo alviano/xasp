@@ -471,9 +471,7 @@ def test_running_example_1(running_example_1):
     minimal_assumption_set = compute_minimal_assumption_set(running_example_1)
     assert len(minimal_assumption_set) == 0
     explanation = compute_explanation(running_example_1)
-    print(explanation.as_facts())
     assert len(explanation) == 32
-    assert False
 
 
 def test_process_aggregate_with_variables():
