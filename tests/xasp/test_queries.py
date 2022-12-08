@@ -58,8 +58,8 @@ rule(r2).
   pos_body(r2,agg1).
 
 aggregate(agg1, sum, ">=", 1).
-  agg_set(agg1, a, 1).
-  agg_set(agg1, c, 1).
+  agg_set(agg1, a, 1, ()).
+  agg_set(agg1, c, 1, ()).
 
 
 % answer set: a b
@@ -88,8 +88,8 @@ rule(r2).
   pos_body(r2,agg1).
 
 aggregate(agg1, sum, "<", 1).
-  agg_set(agg1, a, 1).
-  agg_set(agg1, c, 1).
+  agg_set(agg1, a, 1, ()).
+  agg_set(agg1, c, 1, ()).
 
 
 % answer set: a
@@ -201,7 +201,7 @@ rule(r3(X)) :- atom(a(X)).  %, #sum{Y : true(b(X,Y))} >= X.
   pos_body(r3(X),agg1(X)) :- rule(r3(X)).
 
 aggregate(agg1(X), sum, ">=", X) :- rule(r3(X)).
-  agg_set(agg1(X), b(X,Y), Y) :- rule(r3(X)), atom(b(X,Y)).
+  agg_set(agg1(X), b(X,Y), Y, ()) :- rule(r3(X)), atom(b(X,Y)).
   
   
 % answer set: a(1) b(1,0)
@@ -484,12 +484,12 @@ def test_process_aggregate_with_variables():
             pos_body(r1(1), a(1)).
             pos_body(r1(1), agg1(1)).
             aggregate(agg1(1), sum, ">", 0).
-            agg_set(agg1(1), b(1,2), 2).
+            agg_set(agg1(1), b(1,2), 2, ()).
         rule(r1(2)).
             pos_body(r1(2), a(2)).
             pos_body(r1(2), agg1(2)).
             aggregate(agg1(2), sum, ">", 0).
-            agg_set(agg1(2), b(2,1), 1).
+            agg_set(agg1(2), b(2,1), 1, ()).
         true(a(1)).
         true(a(2)).
         true(b(1,2)).

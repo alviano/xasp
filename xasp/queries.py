@@ -84,7 +84,7 @@ Each rule of the program is encoded by facts of the form
 
 Each aggregate of the program is encoded by facts of the form
 - aggregate(AGG, FUN, OPERATOR, BOUNDS)
-- agg_set(AGG, ATOM, WEIGHT)
+- agg_set(AGG, ATOM, WEIGHT, TERMS)
 
 The answer set is encoded by facts of the form
 - true(ATOM)
@@ -97,16 +97,16 @@ If the atom to explain is false, the input must contain one fact of the form
 
 % compute true aggregates
 true_aggregate(Agg) :- aggregate(Agg, Fun, Operator, Bounds), Fun == sum;
-    Value = #sum{Weight, Atom : agg_set(Agg, Atom, Weight), true(Atom)};
+    Value = #sum{Weight, Terms : agg_set(Agg, Atom, Weight, Terms), true(Atom)};
     @check_operator(Operator, Bounds, Value) = 1.
 true_aggregate(Agg) :- aggregate(Agg, Fun, Operator, Bounds), Fun == count;
-    Value = #count{Weight, Atom : agg_set(Agg, Atom, Weight), true(Atom)};
+    Value = #count{Weight, Terms : agg_set(Agg, Atom, Weight, Terms), true(Atom)};
     @check_operator(Operator, Bounds, Value) = 1.
 true_aggregate(Agg) :- aggregate(Agg, Fun, Operator, Bounds), Fun == min;
-    Value = #min{Weight, Atom : agg_set(Agg, Atom, Weight), true(Atom)};
+    Value = #min{Weight, Terms : agg_set(Agg, Atom, Weight, Terms), true(Atom)};
     @check_operator(Operator, Bounds, Value) = 1.
 true_aggregate(Agg) :- aggregate(Agg, Fun, Operator, Bounds), Fun == max;
-    Value = #max{Weight, Atom : agg_set(Agg, Atom, Weight), true(Atom)};
+    Value = #max{Weight, Terms : agg_set(Agg, Atom, Weight, Terms), true(Atom)};
     @check_operator(Operator, Bounds, Value) = 1.
 
 % every aggregate that is not true, is false
@@ -115,14 +115,14 @@ false_aggregate(Agg) :- aggregate(Agg, Fun, Operator, Bounds); not true_aggregat
 % true aggregates are considered as rules of the form  agg :- true_atoms_in_agg_set, ~false_atoms_in_agg_set.
 rule(Agg) :- true_aggregate(Agg).
 head(Agg,Agg) :- true_aggregate(Agg).
-pos_body(Agg,Atom) :- true_aggregate(Agg), agg_set(Agg,Atom,Weight), true(Atom).
-neg_body(Agg,Atom) :- true_aggregate(Agg), agg_set(Agg,Atom,Weight), false(Atom).
+pos_body(Agg,Atom) :- true_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), true(Atom).
+neg_body(Agg,Atom) :- true_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), false(Atom).
 
 % false aggregates are considered as several rules of the form  agg :- ~true_atom_in_agg_set.   agg :- false_atom_in_agg_set.
-rule((Agg,Atom)) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight).
-head((Agg,Atom),Agg) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight).
-pos_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight), false(Atom).
-neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Aggr,Atom,Weight), true(Atom).
+rule((Agg,Atom)) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms).
+head((Agg,Atom),Agg) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms).
+pos_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), false(Atom).
+neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Aggr,Atom,Weight,Terms), true(Atom).
 
 
 #show.
@@ -146,7 +146,7 @@ head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
 aggregate(0,0,0,0) :- #false.
-agg_set(0,0,0) :- #false.
+agg_set(0,0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 explain_false(0) :- #false.
@@ -257,8 +257,7 @@ choice(0,0,0) :- #false.
 head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
-aggregate(0,0,0,0) :- #false.
-agg_set(0,0,0) :- #false.
+aggregate(0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 """
@@ -420,8 +419,7 @@ choice(0,0,0) :- #false.
 head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
-aggregate(0,0,0,0) :- #false.
-agg_set(0,0,0) :- #false.
+aggregate(0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 indexed_explained_by(0,0,0) :- #false.
@@ -438,7 +436,7 @@ atom(Atom) :- false(Atom).
 #show pos_body/2.
 #show neg_body/2.
 #show aggregate/4.
-#show agg_set/3.
+#show agg_set/4.
 #show true/1.
 #show false/1.
 
@@ -449,7 +447,7 @@ choice(0,0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
 aggregate(0,0,0,0) :- #false.
-agg_set(0,0,0) :- #false.
+agg_set(0,0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 """

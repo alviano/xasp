@@ -210,8 +210,8 @@ def test_transform_propositional_rule_with_aggregate(transformer):
             head(r1,a) :- rule(r1).
             pos_body(r1,agg1) :- rule(r1).
         aggregate(agg1,sum,">=",1) :- rule(r1).
-            agg_set(agg1,b,1) :- rule(r1), atom(b).
-            agg_set(agg1,c,1) :- rule(r1), atom(c).
+            agg_set(agg1,b,1,()) :- rule(r1), atom(b).
+            agg_set(agg1,c,1,()) :- rule(r1), atom(c).
     """)
 
 
@@ -232,5 +232,5 @@ def test_transform_symbolic_rule_with_aggregate(transformer):
             pos_body(r1(X,Y),b(X,Y)) :- rule(r1(X,Y)).
             pos_body(r1(X,Y),agg1(X,Y)) :- rule(r1(X,Y)).
         aggregate(agg1(X,Y),sum,"=",Y) :- rule(r1(X,Y)).
-            agg_set(agg1(X,Y),c(X,Y,Z),Z) :- rule(r1(X,Y)), atom(c(X,Y,Z)).
+            agg_set(agg1(X,Y),c(X,Y,Z),Z,()) :- rule(r1(X,Y)), atom(c(X,Y,Z)).
     """)
