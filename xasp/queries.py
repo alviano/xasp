@@ -366,7 +366,8 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (support, Rule);
     neg_body(Rule, BAtom).
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
+%link(Index, Atom, Reason, "false") 
+:- explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
     #count{Rule : head(Rule, Atom)} = 0.
 link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, Reason);
@@ -378,7 +379,8 @@ link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, R
     };
     explained_by(FirstIndex, BAtom, _).
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
+%link(Index, Atom, Reason, "false") 
+:- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);
     #count{HAtom : head(Rule, HAtom); BAtom: pos_body(Rule, BAtom), BAtom != Atom; BAtom: neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, HAtom) :- explained_by(Index, Atom, Reason);
@@ -391,7 +393,8 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);
     neg_body(Rule, BAtom).
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
+%link(Index, Atom, Reason, "false") 
+:- explained_by(Index, Atom, Reason);
     Reason = (choice_rule, Rule);
     #count{HAtom : head(Rule, HAtom), true(HAtom); BAtom: pos_body(Rule, BAtom); BAtom: neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, HAtom) :- explained_by(Index, Atom, Reason);
