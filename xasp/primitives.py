@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import clingo
 import typeguard
@@ -21,8 +21,11 @@ class Model:
             if on_model.cost is not None and on_model.cost <= model.cost:
                 on_model.exception = True
             on_model.cost = model.cost
-            on_model.res = Model(key=Model.__key, value=tuple(sorted((x for x in model.symbols(shown=True)),
-                                                                     key=lambda atom: str(atom))))
+            on_model.res = Model(
+                key=Model.__key,
+                value=tuple(sorted((x for x in model.symbols(shown=True)),
+                                   key=lambda atom: (str(atom.name), atom.arguments)))
+            )
         on_model.cost = None
         on_model.res = None
         on_model.exception = False
@@ -53,3 +56,6 @@ class Model:
 
     def drop(self, predicate: str) -> "Model":
         return Model(key=self.__key, value=tuple(atom for atom in self if atom.name != predicate))
+
+    def map(self, fun: Callable[[clingo.Symbol], clingo.Symbol]) -> 'Model':
+        return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))

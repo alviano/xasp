@@ -1,9 +1,8 @@
 import dataclasses
-from functools import lru_cache, cached_property
-from typing import Optional
+from collections import defaultdict, namedtuple
+from functools import cached_property
 
 from clingo import Number, String
-from collections import defaultdict, namedtuple
 
 from xasp.utils import log
 
@@ -139,6 +138,9 @@ class ComputeMinimalAssumptionSetContext:
                     log.debug(f"source pointer: {head_atom} {rule.id}")
                     source_pointer[head_atom] = rule
                     my_queue.append(head_atom)
+
+    def index(self):
+        return Number(0)
 
 
 @dataclasses.dataclass(frozen=True)

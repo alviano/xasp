@@ -236,7 +236,7 @@ def test_process_true_aggregate(example1):
 
 def test_process_false_aggregate(example2):
     model = process_aggregates(example2)
-    assert model.as_facts() == '\n'.join(sorted([
+    assert model == compute_stable_model('\n'.join([
         "rule(r1).",
         "head(r1,a).",
         "rule(r2).",
@@ -276,70 +276,131 @@ def test_compute_minimal_assumption_set(example1, example2, example3):
 
 def test_compute_explanation(example1, example2, example3):
     model = compute_explanation(example1)
-    assert model == compute_stable_model("""
-        indexed_explained_by(1, c, initial_well_founded).
-        indexed_explained_by(2, a, (support,r1)).
-        indexed_explained_by(3, agg1, (support,agg1)).
-        indexed_explained_by(4, b, (support,r2)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            explained_by(1, c, initial_well_founded).
+            explained_by(2, a, (support,r1)).
+            explained_by(3, agg1, (support,agg1)).
+            explained_by(4, b, (support,r2)).
+        """),
+        compute_stable_model("""
+            explained_by(1, c, initial_well_founded).
+            explained_by(2, b, (support,r2)).
+            explained_by(3, a, (support,r1)).
+            explained_by(4, agg1, (support,agg1)).
+        """)
+    ]
     model = compute_explanation(example2)
-    assert model == compute_stable_model("""
-        indexed_explained_by(1, c, initial_well_founded).
-        indexed_explained_by(2, b, initial_well_founded).
-        indexed_explained_by(3, agg1, initial_well_founded).
-        indexed_explained_by(4, a, (support,r1)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            explained_by(1, c, initial_well_founded).
+            explained_by(2, b, initial_well_founded).
+            explained_by(3, agg1, initial_well_founded).
+            explained_by(4, a, (support,r1)).
+        """),
+        compute_stable_model("""
+            explained_by(1,agg1,initial_well_founded).
+            explained_by(2,b,initial_well_founded).
+            explained_by(3,c,initial_well_founded).
+            explained_by(4,a,(support,r1)).
+        """)
+    ]
     model = compute_explanation(example3)
     assert model in [
         compute_stable_model("""
-            indexed_explained_by(1,c,assumption).
-            indexed_explained_by(2,b,assumption).
-            indexed_explained_by(3,d,lack_of_support).
-            indexed_explained_by(4,body,(support,r1)).
-            indexed_explained_by(5,a,(support,r2)).
+            explained_by(1,c,assumption).
+            explained_by(2,b,assumption).
+            explained_by(3,d,lack_of_support).
+            explained_by(4,body,(support,r1)).
+            explained_by(5,a,(support,r2)).
         """),
         compute_stable_model("""
-            indexed_explained_by(1,d,assumption).
-            indexed_explained_by(2,c,assumption).
-            indexed_explained_by(3,body,(support,r1)).
-            indexed_explained_by(4,b,(required_to_falsify_body,r3)).
-            indexed_explained_by(5,a,(support,r2)).
-        """)
+            explained_by(1,d,assumption).
+            explained_by(2,c,assumption).
+            explained_by(3,body,(support,r1)).
+            explained_by(4,b,(required_to_falsify_body,r3)).
+            explained_by(5,a,(support,r2)).
+        """),
+        compute_stable_model("""
+            explained_by(1,c,assumption).
+            explained_by(2,d,assumption).
+            explained_by(3,body,(support,r1)).
+            explained_by(4,a,(support,r2)).
+            explained_by(5,b,(required_to_falsify_body,r3)).
+        """),
+        compute_stable_model("""
+            explained_by(1,c,assumption).
+            explained_by(2,d,assumption).
+            explained_by(3,body,(support,r1)).
+            explained_by(4,b,(required_to_falsify_body,r3)).
+            explained_by(5,a,(support,r2)).
+        """),
     ]
 
 
 def test_compute_explanation_dag(example1, example2, example3):
     model = compute_explanation_dag(example1)
-    assert model == compute_stable_model("""
-        link(1,c,initial_well_founded,false).
-        link(2,a,(support,r1),true).
-        link(3,agg1,(support,agg1),(a,true)).
-        link(3,agg1,(support,agg1),(c,false)).
-        link(4,b,(support,r2),(agg1,true)).
-    """)
-    model = compute_explanation_dag(example2)
-    assert model == compute_stable_model("""
-        link(1,c,initial_well_founded,false).
-        link(2,b,initial_well_founded,false).
-        link(3,agg1,initial_well_founded,false).
-        link(4,a,(support,r1),true).
-    """)
-    model = compute_explanation_dag(example3)
     assert model in [
         compute_stable_model("""
-            link(1,c,assumption,false).
-            link(2,b,assumption,false).
-            link(3,d,(lack_of_support,r3),(b,false)).
-            link(4,body,(support,r1),true).
-            link(5,a,(support,r2),(body,true)).
+            link(1,c,initial_well_founded,"false").
+            link(2,a,(support,r1),"true").
+            link(3,agg1,(support,agg1),a).
+            link(3,agg1,(support,agg1),c).
+            link(4,b,(support,r2),agg1).
         """),
         compute_stable_model("""
-            link(1,d,assumption,false).
-            link(2,c,assumption,false).
-            link(3,body,(support,r1),true).
-            link(4,b,(required_to_falsify_body,r3),(b,true)).
-            link(4,b,(required_to_falsify_body,r3),(d,true)).
-            link(5,a,(support,r2),(body,true)).
+            link(1,c,initial_well_founded,"false").
+            link(2,b,(support,r2),agg1).
+            link(3,a,(support,r1),"true").
+            link(4,agg1,(support,agg1),a).
+            link(4,agg1,(support,agg1),c).
+        """),
+    ]
+    model = compute_explanation_dag(example2)
+    assert model in [
+        compute_stable_model("""
+            link(1,c,initial_well_founded,"false").
+            link(2,b,initial_well_founded,"false").
+            link(3,agg1,initial_well_founded,"false").
+            link(4,a,(support,r1),"true").
+        """),
+        compute_stable_model("""
+            link(1,agg1,initial_well_founded,"false").
+            link(2,b,initial_well_founded,"false").
+            link(3,c,initial_well_founded,"false").
+            link(4,a,(support,r1),"true").
+        """),
+    ]
+    model = compute_explanation_dag(example3)
+    print(model.as_facts())
+    assert model in [
+        compute_stable_model("""        
+            link(1,c,assumption,"false").
+            link(2,b,assumption,"false").
+            link(3,d,(lack_of_support,r3),(b,"false")).
+            link(4,body,(support,r1),"true").
+            link(5,a,(support,r2),body).
+        """),
+        compute_stable_model("""
+            link(1,d,assumption,"false").
+            link(2,c,assumption,"false").
+            link(3,body,(support,r1),"true").
+            link(4,b,(required_to_falsify_body,r3),d).
+            link(5,a,(support,r2),true).
+        """),
+        compute_stable_model("""
+            link(1,c,assumption,"false").
+            link(2,d,assumption,"false").
+            link(3,body,(support,r1),"true").
+            link(4,a,(support,r2),body).
+            link(5,b,(required_to_falsify_body,r3),d).
+        """),
+        compute_stable_model("""
+            link(1,c,assumption,"false").
+            link(2,d,assumption,"false").
+            link(3,body,(support,r1),"true").
+            link(4,b,(required_to_falsify_body,r3),d).
+            link(5,a,(support,r2),body).
         """),
     ]
 
@@ -348,46 +409,120 @@ def test_deal_with_symbolic_program(example4):
     model = compute_minimal_assumption_set(example4)
     assert model == compute_stable_model("assume_false(b(2)).")
     model = compute_explanation(example4)
-    assert model == compute_stable_model("""
-        indexed_explained_by(1,b(2),assumption).
-        indexed_explained_by(2,c(1),initial_well_founded).
-        indexed_explained_by(3,a(1),(support,r1)).
-        indexed_explained_by(4,a(2),(support,r1)).
-        indexed_explained_by(5,b(1),(support,r2(1))).
-        indexed_explained_by(6,c(2),(support,r3(2))).
-    """)
+    assert model in [
+        compute_stable_model("""
+            explained_by(1,b(2),assumption).
+            explained_by(2,c(1),initial_well_founded).
+            explained_by(3,a(1),(support,r1)).
+            explained_by(4,a(2),(support,r1)).
+            explained_by(5,b(1),(support,r2(1))).
+            explained_by(6,c(2),(support,r3(2))).
+        """),
+        compute_stable_model("""
+            explained_by(1,b(2),assumption).
+            explained_by(2,c(1),initial_well_founded).
+            explained_by(3,a(2),(support,r1)).
+            explained_by(4,a(1),(support,r1)).
+            explained_by(5,b(1),(support,r2(1))).
+            explained_by(6,c(2),(support,r3(2))).
+        """),
+        compute_stable_model("""
+            explained_by(1,c(1),initial_well_founded).
+            explained_by(2,b(2),assumption).
+            explained_by(3,c(2),(support,r3(2))).
+            explained_by(4,b(1),(support,r2(1))).
+            explained_by(5,a(1),(support,r1)).
+            explained_by(6,a(2),(support,r1)).
+        """),
+        compute_stable_model("""
+            explained_by(1,c(1),initial_well_founded).
+            explained_by(2,b(2),assumption).
+            explained_by(3,a(1),(support,r1)).
+            explained_by(4,a(2),(support,r1)).
+            explained_by(5,c(2),(support,r3(2))).
+            explained_by(6,b(1),(support,r2(1))).
+        """),
+    ]
     model = compute_explanation_dag(example4)
-    assert model == compute_stable_model("""
-        link(1,b(2),assumption,false).
-        link(2,c(1),initial_well_founded,false).
-        link(3,a(1),(support,r1),true).
-        link(4,a(2),(support,r1),true).
-        link(5,b(1),(support,r2(1)),(a(1),true)).
-        link(6,c(2),(support,r3(2)),(a(2),true)).
-        link(6,c(2),(support,r3(2)),(b(2),false)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            link(1,b(2),assumption,"false").
+            link(2,c(1),initial_well_founded,"false").
+            link(3,a(1),(support,r1),"true").
+            link(4,a(2),(support,r1),"true").
+            link(5,b(1),(support,r2(1)),a(1)).
+            link(6,c(2),(support,r3(2)),a(2)).
+            link(6,c(2),(support,r3(2)),b(2)).
+        """),
+        compute_stable_model("""
+            link(1,b(2),assumption,"false").
+            link(2,c(1),initial_well_founded,"false").
+            link(3,a(2),(support,r1),"true").
+            link(4,a(1),(support,r1),"true").
+            link(5,b(1),(support,r2(1)),a(1)).
+            link(6,c(2),(support,r3(2)),a(2)).
+            link(6,c(2),(support,r3(2)),b(2)).
+        """),
+        compute_stable_model("""
+            link(1,c(1),initial_well_founded,"false").
+            link(2,b(2),assumption,"false").
+            link(3,c(2),(support,r3(2)),a(2)).
+            link(3,c(2),(support,r3(2)),b(2)).
+            link(4,b(1),(support,r2(1)),a(1)).
+            link(5,a(1),(support,r1),"true").
+            link(6,a(2),(support,r1),"true").
+        """),
+        compute_stable_model("""
+            link(1,c(1),initial_well_founded,"false").
+            link(2,b(2),assumption,"false").
+            link(3,a(1),(support,r1),"true").
+            link(4,a(2),(support,r1),"true").
+            link(5,c(2),(support,r3(2)),a(2)).
+            link(5,c(2),(support,r3(2)),b(2)).
+            link(6,b(1),(support,r2(1)),a(1)).
+        """),
+    ]
 
 
 def test_deal_with_symbolic_program_and_aggregates(example5):
     model = compute_minimal_assumption_set(example5)
     assert model == compute_stable_model("assume_false(b(1,1)).")
     model = compute_explanation(example5)
-    assert model == compute_stable_model("""
-        indexed_explained_by(1,b(1,1),assumption).
-        indexed_explained_by(2,a(1),(support,r1)).
-        indexed_explained_by(3,b(1,0),(support,r2(1))).
-        indexed_explained_by(4,agg1(1),lack_of_support).
-        indexed_explained_by(5,c,lack_of_support).
-    """)
+    assert model in [
+        compute_stable_model("""
+            explained_by(1,b(1,1),assumption).
+            explained_by(2,a(1),(support,r1)).
+            explained_by(3,b(1,0),(support,r2(1))).
+            explained_by(4,agg1(1),lack_of_support).
+            explained_by(5,c,lack_of_support).
+        """),
+        compute_stable_model("""
+            explained_by(1,b(1,1),assumption).
+            explained_by(2,agg1(1),lack_of_support).
+            explained_by(3,c,lack_of_support).
+            explained_by(4,b(1,0),(support,r2(1))).
+            explained_by(5,a(1),(support,r1)).
+        """),
+    ]
     model = compute_explanation_dag(example5)
-    assert model == compute_stable_model("""
-        link(1,b(1,1),assumption,false).
-        link(2,a(1),(support,r1),true).
-        link(3,b(1,0),(support,r2(1)),(a(1),true)).
-        link(4,agg1(1),(lack_of_support,(agg1(1),b(1,0))),(b(1,0),true)).
-        link(4,agg1(1),(lack_of_support,(agg1(1),b(1,1))),(b(1,1),false)).
-        link(5,c,(lack_of_support,r3(1)),(agg1(1),false)).
-    """)
+    assert model in [
+        compute_stable_model("""
+            link(1,b(1,1),assumption,"false").
+            link(2,a(1),(support,r1),"true").
+            link(3,b(1,0),(support,r2(1)),a(1)).
+            link(4,agg1(1),(lack_of_support,(agg1(1),b(1,0))),b(1,0)).
+            link(4,agg1(1),(lack_of_support,(agg1(1),b(1,1))),b(1,1)).
+            link(5,c,(lack_of_support,r3(1)),agg1(1)).
+        """),
+        compute_stable_model("""
+            link(1,b(1,1),assumption,"false").
+            link(2,agg1(1),(lack_of_support,(agg1(1),b(1,0))),b(1,0)).
+            link(2,agg1(1),(lack_of_support,(agg1(1),b(1,1))),b(1,1)).
+            link(3,c,(lack_of_support,r3(1)),agg1(1)).
+            link(4,b(1,0),(support,r2(1)),a(1)).
+            link(5,a(1),(support,r1),"true").
+        """),
+    ]
 
 
 def test_serialization_with_propositional_aggregates(example1, example2, example3):
