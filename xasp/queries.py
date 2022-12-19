@@ -286,9 +286,12 @@ Atoms to explain, which cannot be assumed false are encoded by
 ******************************************************************************%
 
 
-% guess the assumption set and minimize its cardinality (aggregates and atoms to explain cannot be assumed false)
-{assume_false(Atom)} :- false(Atom), not aggregate(Atom), not explain(Atom).
-:~ false(Atom), assume_false(Atom). [1@1, Atom]
+% guess the assumption set and minimize its cardinality
+%   aggregates cannot be assumed false
+%   atoms to explain should not be assumed false
+{assume_false(Atom)} :- false(Atom), not aggregate(Atom).
+:~ false(Atom), assume_false(Atom), not explain(Atom). [1@1, Atom]
+:~ false(Atom), assume_false(Atom), explain(Atom). [1@2, Atom]
 
 
 #show.
@@ -433,6 +436,7 @@ atom(Atom) :- false(Atom).
 #show agg_set/4.
 #show true/1.
 #show false/1.
+#show explain/1.
 
 % avoid warnings
 rule(0) :- #false.
@@ -444,4 +448,5 @@ aggregate(0,0,0,0) :- #false.
 agg_set(0,0,0,0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
+explain(0) :- #false.
 """

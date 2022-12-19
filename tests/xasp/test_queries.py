@@ -628,3 +628,20 @@ def test_process_aggregate_with_variables():
         true(b(1,2)).
         false(b(2,1)).
     """)
+
+
+def test_lack_of_explanation_1():
+    serialization = compute_serialization("""
+        a :- not b. 
+        b :- not a.
+    """, true_atoms=['b'], false_atoms=['a'], atom_to_explain='a')
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 1
+    assert minimal_assumption_set == compute_stable_model("assume_false(a).")
+
+
+def test_lack_of_explanation_2():
+    serialization = compute_serialization("{a}.", true_atoms=[], false_atoms=['a'], atom_to_explain='a')
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 1
+    assert minimal_assumption_set == compute_stable_model("assume_false(a).")
