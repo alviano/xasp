@@ -645,3 +645,9 @@ def test_lack_of_explanation_2():
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     assert minimal_assumption_set == compute_stable_model("assume_false(a).")
+
+
+def test_lack_of_explanation_3():
+    serialization = compute_serialization("a :- #sum{1 : a} >= 0.", true_atoms=['a'], false_atoms=[], atom_to_explain='a')
+    with pytest.raises(TypeError):
+        compute_minimal_assumption_set(serialization)
