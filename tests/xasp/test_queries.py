@@ -674,3 +674,60 @@ def test_atom_inferred_by_choice_rules_can_be_linked_to_false():
     assert dag == compute_stable_model("""
         link(1,a,(choice_rule,r1),"false").
     """)
+
+
+def test_ly():
+    true_atoms = [atom.strip() for atom in """
+    color(red)
+    color(blue)
+    color(yellow)
+    node(1)
+    node(2)
+    node(3)
+    node(4)
+    node(5)
+    edge(1,3)
+    edge(2,4)
+    edge(2,5)
+    edge(3,4)
+    edge(3,5)
+    colored(3,blue)
+    colored(1,yellow)
+    colored(4,red)
+    colored(2,blue)
+    colored(5,yellow)
+    """.strip().split('\n')]
+    serialization = compute_serialization("""
+    node(1).
+    node(2).
+    node(3).
+    node(4).
+    node(5).
+    edge(1,3).
+    edge(2,4).
+    edge(2,5).
+    edge(3,4).
+    edge(3,5).
+
+    {colored(X,C)} :- node(X), color(C).
+    :- node(X), #count{C : colored(X,C)} != 1.
+
+    color(red).
+    color(blue).
+    color(yellow).
+
+    :- edge(X,Y), colored(X, Z), colored(Y, Z).
+    """, true_atoms=true_atoms, false_atoms=[atom.strip() for atom in """
+    colored(3,yellow)
+    colored(3,red)
+    colored(2,yellow)
+    colored(1,blue)
+    colored(4,blue)
+    colored(5,red)
+    colored(4,yellow)
+    colored(1,red)
+    colored(5,blue)
+    colored(2,red)
+    """.strip().split('\n')], atom_to_explain="colored(4,red)")
+    dag = compute_explanation_dag(serialization)
+    assert len(dag) == 55

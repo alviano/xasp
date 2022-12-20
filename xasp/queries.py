@@ -128,7 +128,7 @@ neg_body(Agg,Atom) :- true_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), false
 rule((Agg,Atom)) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms).
 head((Agg,Atom),Agg) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms).
 pos_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), false(Atom).
-neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Aggr,Atom,Weight,Terms), true(Atom).
+neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms), true(Atom).
 
 
 #show.
