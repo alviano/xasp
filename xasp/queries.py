@@ -250,7 +250,7 @@ explained_by(@index(), Atom, assumption) :- assume_false(Atom).
     % a false atom can be explained by a choice rule with true body and whose true head atoms already reach the upper bound
     {explained_by(@index(), Atom, (choice_rule, Rule))} :-
       false(Atom);
-      head(Rule,Atom), choice(Rule, LowerBound, UpperBound);
+      head(Rule,Atom), choice(Rule, LowerBound, UpperBound), UpperBound != unbounded;
       true(BAtom) : pos_body(Rule,BAtom);
       has_explanation(BAtom) : pos_body(Rule,BAtom);
       false(BAtom) : neg_body(Rule,BAtom);

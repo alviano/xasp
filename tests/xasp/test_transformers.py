@@ -33,7 +33,7 @@ def test_transform_fact(transformer):
 def test_transform_choice_propositional(transformer):
     assert equals(transformer.apply("{a}."), """
         rule(r1) :- .
-            choice(r1,0,1) :- rule(r1).
+            choice(r1,0,unbounded) :- rule(r1).
             head(r1,a) :- rule(r1).
     """)
 
@@ -62,7 +62,7 @@ def test_transform_normal_rule_propositional(transformer):
 def test_transform_choice_rule_with_body_propositional(transformer):
     assert equals(transformer.apply("{a} :- b."), """
         rule(r1) :- atom(b).
-            choice(r1,0,1) :- rule(r1).
+            choice(r1,0,unbounded) :- rule(r1).
             head(r1,a) :- rule(r1).
             pos_body(r1,b) :- rule(r1).
     """)
@@ -87,7 +87,7 @@ def test_transform_normal_rule_ground(transformer):
 def test_transform_choice_rule_ground(transformer):
     assert equals(transformer.apply("{a(1)} :- b(1)."), """
         rule(r1) :- atom(b(1)).
-            choice(r1,0,1) :- rule(r1).
+            choice(r1,0,unbounded) :- rule(r1).
             head(r1,a(1)) :- rule(r1).
             pos_body(r1,b(1)) :- rule(r1).
     """)
@@ -113,7 +113,7 @@ def test_transform_normal_rule_symbolic(transformer):
 def test_transform_choice_rule_symbolic(transformer):
     assert equals(transformer.apply("{a(X)} :- b(X)."), """
         rule(r1(X)) :- atom(b(X)).
-            choice(r1(X),0,1) :- rule(r1(X)).
+            choice(r1(X),0,unbounded) :- rule(r1(X)).
             head(r1(X),a(X)) :- rule(r1(X)).
             pos_body(r1(X),b(X)) :- rule(r1(X)).
     """)
@@ -135,7 +135,7 @@ def test_transform_choice_rule_must_not_have_condition(transformer):
 def test_transform_choice_rule_multiple_atoms(transformer):
     assert equals(transformer.apply("{a; b; c}."), """
         rule(r1) :- .
-            choice(r1,0,3) :- rule(r1).
+            choice(r1,0,unbounded) :- rule(r1).
             head(r1,a) :- rule(r1).
             head(r1,b) :- rule(r1).
             head(r1,c) :- rule(r1).
@@ -155,7 +155,7 @@ def test_transform_choice_rule_with_bounds(transformer):
 def test_transform_choice_rule_with_left_bound(transformer):
     assert equals(transformer.apply("1 <= {a; b; c}."), """
         rule(r1) :- .
-            choice(r1,1,3) :- rule(r1).
+            choice(r1,1,unbounded) :- rule(r1).
             head(r1,a) :- rule(r1).
             head(r1,b) :- rule(r1).
             head(r1,c) :- rule(r1).

@@ -167,12 +167,12 @@ def example4():
 
 
 rule(r1).
-  choice(r1, 0, 2).
+  choice(r1, 0, unbounded).
   head(r1,a(1)).
   head(r1,a(2)).
 
 rule(r2(X)) :- atom(a(X)).
-  choice(r2(X), 0, 1) :- rule(r2(X)).
+  choice(r2(X), 0, unbounded) :- rule(r2(X)).
   head(r2(X),b(X)) :- rule(r2(X)).
   pos_body(r2(X),a(X)) :- rule(r2(X)).
 
@@ -209,7 +209,7 @@ rule(r1).
   head(r1,a(1)).
 
 rule(r2(X)) :- atom(a(X)).
-  choice(r2(X), 0, 2) :- rule(r2(X)).
+  choice(r2(X), 0, unbounded) :- rule(r2(X)).
   head(r2(X),b(X,0)) :- rule(r2(X)).
   head(r2(X),b(X,1)) :- rule(r2(X)).
   pos_body(r2(X),a(X)) :- rule(r2(X)).
@@ -696,7 +696,7 @@ def test_atom_inferred_by_choice_rules_can_be_linked_to_false():
     """)
 
 
-def test_ly():
+def test_3_col():
     true_atoms = [atom.strip() for atom in """
     color(red)
     color(blue)

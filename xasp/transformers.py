@@ -80,7 +80,7 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
 
     @staticmethod
     def __compute_choice_bounds(choice):
-        left, right = 0, len(choice.elements)
+        left, right = 0, "unbounded"
         if choice.left_guard is not None:
             validate("left guard", choice.left_guard.comparison != ComparisonOperator.NotEqual, equals=True)
             if choice.left_guard.comparison == ComparisonOperator.LessThan:
@@ -162,6 +162,6 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         return node
 
     def visit_Variable(self, node):
-        if self.__state in [self.State.READING_HEAD, self.__state.READING_BODY]:
+        if self.__state == self.__state.READING_BODY:
             self.__variables.add(str(node))
         return node
