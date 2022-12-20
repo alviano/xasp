@@ -113,10 +113,16 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
             elif operator in ['<', '<=']:
                 operator = operator.replace('<', '>')
         else:
-            validate("left guard is <=", str(literal.atom.left_guard).split()[0], equals="<=")
-            validate("right guard is >=", str(literal.atom.right_guard).split()[0], equals="<=")
+            left = str(literal.atom.left_guard).split()
+            right = str(literal.atom.right_guard).split()
+            validate("left guard is < or <=", left[0][0], equals="<")
+            validate("right guard is < or <=", right[0][0], equals="<")
+            if left[0] == "<":
+                left[1] = f"({left[1]}) + 1"
+            if right[0] == "<":
+                right[1] = f"({right[1]}) - 1"
             operator = "in"
-            bound = f"({str(literal.atom.left_guard).split()[1]},{str(literal.atom.right_guard).split()[1]})"
+            bound = f"({left[1]},{right[1]})"
 
         self.__agg_index += 1
         agg_id, fun = f"agg{self.__agg_index}", literal.atom.function

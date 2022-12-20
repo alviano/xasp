@@ -230,6 +230,16 @@ def test_transform_aggregate_with_two_bounds(transformer):
     """)
 
 
+def test_transform_aggregate_with_two_strict_bounds(transformer):
+    assert equals(transformer.apply("a :- 0 < #sum{1 : a} < 2."), """
+        rule(r1) :- .
+            head(r1,a) :- rule(r1).
+            pos_body(r1,agg1) :- rule(r1).
+        aggregate(agg1,sum,"in",((0) + 1,(2) - 1)) :- rule(r1).
+            agg_set(agg1,a,1,()) :- rule(r1), atom(a).
+    """)
+
+
 def test_transform_symbolic_rule_with_aggregate(transformer):
     assert equals(transformer.apply("a(X) :- b(X,Y), #sum{Z : c(X,Y,Z)} = Y."), """
         rule(r1(X,Y)) :- atom(b(X,Y)).
