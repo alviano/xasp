@@ -23,7 +23,7 @@ def test_compute_program_serialization():
     model = compute_serialization("""
         a.
         b :- a, not c.
-    """, true_atoms="a b", false_atoms="c")
+    """, true_atoms="a b".split(), false_atoms="c".split())
     assert model == compute_stable_model("""
         rule(r1).
           head(r1,a).
@@ -36,6 +36,25 @@ def test_compute_program_serialization():
         true(a).
         true(b).
         false(c).
+    """)
+
+
+def test_compute_program_serialization_for_aggregates_with_two_bounds():
+    model = compute_serialization("""
+        :- 0 <= #sum{X : p(X)} <= 1.
+    """, true_atoms="p(-1) p(1)".split(), false_atoms="p(2)".split())
+    assert model == compute_stable_model("""
+        rule(r1).
+          pos_body(r1,agg1).
+
+        aggregate(agg1, sum, "in", (0,1)).
+          agg_set(agg1,p(-1), -1, ()).
+          agg_set(agg1,p(1), 1, ()).
+          agg_set(agg1,p(2), 2, ()).
+
+        true(p(-1)).
+        true(p(1)).
+        false(p(2)).
     """)
 
 
@@ -648,7 +667,8 @@ def test_lack_of_explanation_2():
 
 
 def test_lack_of_explanation_3():
-    serialization = compute_serialization("a :- #sum{1 : a} >= 0.", true_atoms=['a'], false_atoms=[], atom_to_explain='a')
+    serialization = compute_serialization("a :- #sum{1 : a} >= 0.", true_atoms=['a'], false_atoms=[],
+                                          atom_to_explain='a')
     with pytest.raises(TypeError):
         compute_minimal_assumption_set(serialization)
 

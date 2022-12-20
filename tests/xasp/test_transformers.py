@@ -220,9 +220,14 @@ def test_transform_aggregate_with_negation_raises_error(transformer):
         transformer.apply("a :- #sum{1 : not a} = 0.")
 
 
-def test_transform_aggregate_with_two_bounds_raises_error(transformer):
-    with pytest.raises(ValueError):
-        transformer.apply("a :- 1 <= #sum{1 : a} <= 1.")
+def test_transform_aggregate_with_two_bounds(transformer):
+    assert equals(transformer.apply("a :- 1 <= #sum{1 : a} <= 1."), """
+        rule(r1) :- .
+            head(r1,a) :- rule(r1).
+            pos_body(r1,agg1) :- rule(r1).
+        aggregate(agg1,sum,"in",(1,1)) :- rule(r1).
+            agg_set(agg1,a,1,()) :- rule(r1), atom(a).
+    """)
 
 
 def test_transform_symbolic_rule_with_aggregate(transformer):

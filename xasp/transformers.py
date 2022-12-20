@@ -106,7 +106,18 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         return left, right
 
     def __process_aggregate(self, literal, rule_id, rule_atom):
-        validate("no right guard", literal.atom.right_guard is None, equals=True)
+        if literal.atom.right_guard is None:
+            operator, bound = str(literal.atom.left_guard).split()
+            if operator in ['>', '>=']:
+                operator = operator.replace('>', '<')
+            elif operator in ['<', '<=']:
+                operator = operator.replace('<', '>')
+        else:
+            validate("left guard is <=", str(literal.atom.left_guard).split()[0], equals="<=")
+            validate("right guard is >=", str(literal.atom.right_guard).split()[0], equals="<=")
+            operator = "in"
+            bound = f"({str(literal.atom.left_guard).split()[1]},{str(literal.atom.right_guard).split()[1]})"
+
         self.__agg_index += 1
         agg_id, fun = f"agg{self.__agg_index}", literal.atom.function
         if self.__variables:
@@ -122,11 +133,7 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
             fun = "max"
         else:
             raise ValueError(f"Cannot process aggregate function with ID {fun}")
-        operator, bound = str(literal.atom.left_guard).split()
-        if operator in ['>', '>=']:
-            operator = operator.replace('>', '<')
-        elif operator in ['<', '<=']:
-            operator = operator.replace('<', '>')
+
         self.__result.append(f'aggregate({agg_id},{fun},"{operator}",{bound}) :- {rule_atom}.')
         for element in literal.atom.elements:
             validate("condition", element.condition, length=1)
