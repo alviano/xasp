@@ -651,3 +651,16 @@ def test_lack_of_explanation_3():
     serialization = compute_serialization("a :- #sum{1 : a} >= 0.", true_atoms=['a'], false_atoms=[], atom_to_explain='a')
     with pytest.raises(TypeError):
         compute_minimal_assumption_set(serialization)
+
+
+def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
+    serialization = compute_serialization("""
+        a :- not b.
+        b :- not a.
+        :- b.
+    """, true_atoms=['a'], false_atoms=['b'], atom_to_explain="a")
+    dag = compute_explanation_dag(serialization)
+    assert dag == compute_stable_model("""
+        link(1,b,(required_to_falsify_body,r3),"false").
+        link(2,a,(support,r1),b).
+    """)

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xasp"
-version = "0.2.1"
+version = "0.2.2"
 description = "Encodings for eXplainable Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 

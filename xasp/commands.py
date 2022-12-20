@@ -31,6 +31,6 @@ def save_explanation_dag(dag: Model, answer_set: List[str], atom: str, target: P
         layout=graph.layout_kamada_kawai(),
         margin=140,
         target=target,
-        vertex_label_dist=1,
+        vertex_label_dist=2,
         vertex_size=8,
     )
