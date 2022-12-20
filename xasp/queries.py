@@ -395,8 +395,7 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);
     neg_body(Rule, BAtom).
 
-%link(Index, Atom, Reason, "false") 
-:- explained_by(Index, Atom, Reason);
+link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
     Reason = (choice_rule, Rule);
     #count{HAtom : head(Rule, HAtom), true(HAtom); BAtom: pos_body(Rule, BAtom); BAtom: neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, HAtom) :- explained_by(Index, Atom, Reason);

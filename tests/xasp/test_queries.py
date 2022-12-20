@@ -664,3 +664,13 @@ def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
         link(1,b,(required_to_falsify_body,r3),"false").
         link(2,a,(support,r1),b).
     """)
+
+
+def test_atom_inferred_by_choice_rules_can_be_linked_to_false():
+    serialization = compute_serialization("""
+        {a} <= 0.
+    """, true_atoms=[], false_atoms=['a'], atom_to_explain="a")
+    dag = compute_explanation_dag(serialization)
+    assert dag == compute_stable_model("""
+        link(1,a,(choice_rule,r1),"false").
+    """)
