@@ -9,25 +9,16 @@ from xasp.utils import validate
 
 
 @typeguard.typechecked
-class ProgramSerializerTransformer(clingo.ast.Transformer):
-    class State(Enum):
-        READING_HEAD = auto()
-        READING_BODY = auto()
-        READING_AGGREGATE = auto()
-
+class Transformer(clingo.ast.Transformer):
     def __init__(self) -> None:
         super().__init__()
-        self.__rule_index = 0
-        self.__agg_index = 0
-        self.__exceptions = []
+        self.__called = False
         self.__result = []
-        self.__state = None
-        self.__variables = set()
+        self.__exceptions = []
 
     def apply(self, string: str) -> str:
-        validate("called once", self.__rule_index)
+        validate("called once", self.__called, equals=False)
         clingo.ast.parse_string(string, lambda obj: self.__transform(obj))
-        self.__rule_index = None
         if self.__exceptions:
             raise self.__exceptions[0]
         return '\n'.join(self.__result)
@@ -37,6 +28,24 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
             self.visit(obj)
         except Exception as err:
             self.__exceptions.append(err)
+
+    def add_to_result(self, string: str) -> None:
+        self.__result.append(string)
+
+
+@typeguard.typechecked
+class ProgramSerializerTransformer(Transformer):
+    class State(Enum):
+        READING_HEAD = auto()
+        READING_BODY = auto()
+        READING_AGGREGATE = auto()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__rule_index = 0
+        self.__agg_index = 0
+        self.__state = None
+        self.__variables = set()
 
     def visit_Rule(self, node):
         self.__rule_index += 1
@@ -49,26 +58,26 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         rule_atom = f"rule({rule_id})"
         rule_body = ", ".join(f"atom({literal.atom})" for literal in body if literal.sign == Sign.NoSign and
                               literal.atom.ast_type == ASTType.SymbolicAtom)
-        self.__result.append(f"{rule_atom} :- {rule_body}.")
+        self.add_to_result(f"{rule_atom} :- {rule_body}.")
 
         if str(head) != "#false":
             validate("head type", head.ast_type, is_in=(ASTType.Aggregate, ASTType.Literal))
             if head.ast_type == ASTType.Aggregate:
                 lower_bound, upper_bound = self.__compute_choice_bounds(head)
-                self.__result.append(f"choice({rule_id},{lower_bound},{upper_bound}) :- {rule_atom}.")
+                self.add_to_result(f"choice({rule_id},{lower_bound},{upper_bound}) :- {rule_atom}.")
                 for element in head.elements:
                     validate("condition is empty", element.condition, length=0)
-                    self.__result.append(f"head({rule_id},{element.literal}) :- {rule_atom}.")
+                    self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}.")
             else:
                 validate("positive head", head.sign, equals=False)
-                self.__result.append(f"head({rule_id},{head}) :- {rule_atom}.")
+                self.add_to_result(f"head({rule_id},{head}) :- {rule_atom}.")
 
         for literal in body:
             if literal.sign:
                 validate("negation in front of atoms", literal.atom.ast_type, equals=ASTType.SymbolicAtom)
-                self.__result.append(f"neg_body({rule_id},{literal.atom}) :- {rule_atom}.")
+                self.add_to_result(f"neg_body({rule_id},{literal.atom}) :- {rule_atom}.")
             elif literal.atom.ast_type == ASTType.SymbolicAtom:
-                self.__result.append(f"pos_body({rule_id},{literal.atom}) :- {rule_atom}.")
+                self.add_to_result(f"pos_body({rule_id},{literal.atom}) :- {rule_atom}.")
             elif literal.atom.ast_type == ASTType.BodyAggregate:
                 self.__process_aggregate(literal, rule_id, rule_atom)
             else:
@@ -128,7 +137,7 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         agg_id, fun = f"agg{self.__agg_index}", literal.atom.function
         if self.__variables:
             agg_id = f"{agg_id}({','.join(sorted(self.__variables))})"
-        self.__result.append(f"pos_body({rule_id},{agg_id}) :- {rule_atom}.")
+        self.add_to_result(f"pos_body({rule_id},{agg_id}) :- {rule_atom}.")
         if fun == AggregateFunction.Sum:
             fun = "sum"
         elif fun == AggregateFunction.Count:
@@ -140,13 +149,13 @@ class ProgramSerializerTransformer(clingo.ast.Transformer):
         else:
             raise ValueError(f"Cannot process aggregate function with ID {fun}")
 
-        self.__result.append(f'aggregate({agg_id},{fun},"{operator}",{bound}) :- {rule_atom}.')
+        self.add_to_result(f'aggregate({agg_id},{fun},"{operator}",{bound}) :- {rule_atom}.')
         for element in literal.atom.elements:
             validate("condition", element.condition, length=1)
             validate("condition", element.condition[0].sign, equals=Sign.NoSign)
             validate("terms", element.terms, min_len=1)
             terms = [str(term) for term in element.terms]
-            self.__result.append(
+            self.add_to_result(
                 f"agg_set({agg_id},{element.condition[0]},{terms[0]},({','.join(terms[1:])})) :- "
                 f"{rule_atom}, atom({element.condition[0]})."
             )
