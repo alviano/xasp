@@ -51,6 +51,7 @@ class Model:
     def __iter__(self):
         return self.value.__iter__()
 
+    @property
     def as_facts(self) -> str:
         return '\n'.join(f"{atom}." for atom in self)
 
@@ -59,3 +60,7 @@ class Model:
 
     def map(self, fun: Callable[[clingo.Symbol], clingo.Symbol]) -> 'Model':
         return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))
+
+    @property
+    def block_up(self) -> str:
+        return ":- " + ", ".join([f"{atom}" for atom in self]) + '.'

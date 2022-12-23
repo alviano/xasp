@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
-    compute_explanation, compute_explanation_dag, compute_serialization
+    compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -235,7 +235,7 @@ atom(Atom) :- false(Atom).
 
 def test_process_true_aggregate(example1):
     model = process_aggregates(example1)
-    assert model.as_facts() == '\n'.join(sorted([
+    assert model.as_facts == '\n'.join(sorted([
         "rule(r1).",
         "head(r1,a).",
         "rule(r2).",
@@ -391,7 +391,6 @@ def test_compute_explanation_dag(example1, example2, example3):
         """),
     ]
     model = compute_explanation_dag(example3)
-    print(model.as_facts())
     assert model in [
         compute_stable_model("""        
             link(1,c,assumption,"false").
@@ -751,3 +750,27 @@ def test_3_col():
     """.strip().split('\n')], atom_to_explain="colored(4,red)")
     dag = compute_explanation_dag(serialization)
     assert len(dag) == 55
+
+
+def test_compute_second_minimal_assumption_set():
+    serialization = compute_serialization("""
+        a :- not b.
+        b :- not a.
+        c :- not a.
+        a :- not c.
+    """, true_atoms=["a"], false_atoms=["b", "c"], atom_to_explain="a")
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 1
+    minimal_assumption_set = compute_minimal_assumption_set(serialization, [minimal_assumption_set])
+    assert len(minimal_assumption_set) == 1
+
+
+def test_compute_all_minimal_assumption_sets():
+    serialization = compute_serialization("""
+            a :- not b.
+            b :- not a.
+            c :- not a.
+            a :- not c.
+        """, true_atoms=["a"], false_atoms=["b", "c"], atom_to_explain="a")
+    minimal_assumption_sets = compute_minimal_assumption_sets(serialization)
+    assert len(minimal_assumption_sets) == 2

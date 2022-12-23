@@ -29,25 +29,41 @@ def compute_serialization(asp_program: str, true_atoms: List[str], false_atoms: 
 
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
     res = compute_stable_model(
-        PROCESS_AGGREGATES_ENCODING + to_be_explained_serialization.as_facts(),
+        PROCESS_AGGREGATES_ENCODING + to_be_explained_serialization.as_facts,
         context=ProcessAggregatesContext()
     )
     validate("res", res, help_msg="No stable model. The input is likely wrong.")
     return res
 
 
-def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
+def compute_minimal_assumption_set(to_be_explained_serialization: Model,
+                                   different_from: Optional[List[Model]] = None) -> Optional[Model]:
     encoding = MINIMAL_ASSUMPTION_SET_ENCODING + EXPLAIN_ENCODING + \
-               process_aggregates(to_be_explained_serialization).as_facts()
+               process_aggregates(to_be_explained_serialization).as_facts
+    if different_from:
+        encoding += '\n'.join(model.block_up for model in different_from)
     res = compute_stable_model(encoding, context=ComputeMinimalAssumptionSetContext())
-    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    if not different_from:
+        validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> List[Model]:
+    if up_to is not None:
+        validate("up_to", up_to, min_value=1)
+    res = []
+    while up_to is None or len(res) < up_to:
+        assumption_set = compute_minimal_assumption_set(to_be_explained_serialization, res)
+        if assumption_set is None:
+            break
+        res.append(assumption_set)
     return res
 
 
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
     assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
-    encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + assumption_set.as_facts() + \
-               process_aggregates(to_be_explained_serialization).as_facts()
+    encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + assumption_set.as_facts + \
+               process_aggregates(to_be_explained_serialization).as_facts
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
     validate("res", res, help_msg="No stable model. The input is likely wrong.")
 
@@ -61,8 +77,8 @@ def compute_explanation(to_be_explained_serialization: Model) -> Model:
 
 def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
     explanation = compute_explanation(to_be_explained_serialization)
-    encoding = EXPLANATION_DAG_ENCODING + explanation.as_facts() + \
-               process_aggregates(to_be_explained_serialization).as_facts()
+    encoding = EXPLANATION_DAG_ENCODING + explanation.as_facts + \
+               process_aggregates(to_be_explained_serialization).as_facts
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
     validate("res", res, help_msg="No stable model. The input is likely wrong.")
     return res
