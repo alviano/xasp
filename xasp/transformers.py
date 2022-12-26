@@ -56,8 +56,7 @@ class ProgramSerializerTransformer(Transformer):
         variables = ','.join(sorted(self.__variables))
         rule_id = f"r{self.__rule_index}({variables})" if self.__variables else f"r{self.__rule_index}"
         rule_atom = f"rule({rule_id})"
-        rule_body = ", ".join(f"atom({literal.atom})" for literal in body if literal.sign == Sign.NoSign and
-                              literal.atom.ast_type == ASTType.SymbolicAtom)
+        rule_body = self.__compute_rule_body(body)
         self.add_to_result(f"{rule_atom} :- {rule_body}.")
 
         if str(head) != "#false":
@@ -73,9 +72,12 @@ class ProgramSerializerTransformer(Transformer):
                 self.add_to_result(f"head({rule_id},{head}) :- {rule_atom}.")
 
         for literal in body:
+            if literal.atom.ast_type == ASTType.Comparison:
+                continue
             if literal.sign:
                 validate("negation in front of atoms", literal.atom.ast_type, equals=ASTType.SymbolicAtom)
-                self.add_to_result(f"neg_body({rule_id},{literal.atom}) :- {rule_atom}.")
+                if literal.atom.ast_type == ASTType.SymbolicAtom:
+                    self.add_to_result(f"neg_body({rule_id},{literal.atom}) :- {rule_atom}.")
             elif literal.atom.ast_type == ASTType.SymbolicAtom:
                 self.add_to_result(f"pos_body({rule_id},{literal.atom}) :- {rule_atom}.")
             elif literal.atom.ast_type == ASTType.BodyAggregate:
@@ -86,6 +88,16 @@ class ProgramSerializerTransformer(Transformer):
         self.__state = None
         self.__variables.clear()
         return node
+
+    @staticmethod
+    def __compute_rule_body(body):
+        res = []
+        for literal in body:
+            if literal.atom.ast_type == ASTType.Comparison:
+                res.append(f"{literal}")
+            elif literal.sign == Sign.NoSign and literal.atom.ast_type == ASTType.SymbolicAtom:
+                res.append(f"atom({literal.atom})")
+        return ", ".join(res)
 
     @staticmethod
     def __compute_choice_bounds(choice):

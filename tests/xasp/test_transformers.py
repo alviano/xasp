@@ -249,3 +249,23 @@ def test_transform_symbolic_rule_with_aggregate(program_serializer_transformer):
         aggregate(agg1(X,Y),sum,"=",Y) :- rule(r1(X,Y)).
             agg_set(agg1(X,Y),c(X,Y,Z),Z,()) :- rule(r1(X,Y)), atom(c(X,Y,Z)).
     """)
+
+
+def test_transform_arithmetic_ground(program_serializer_transformer):
+    assert equals(program_serializer_transformer.apply(":- 1 > 2."), """
+        rule(r1) :- 1 > 2.
+    """)
+
+
+def test_transform_arithmetic_symbolic(program_serializer_transformer):
+    assert equals(program_serializer_transformer.apply(":- X = 1..2, X > 2."), """
+        rule(r1(X)) :- X = (1..2), X > 2.
+    """)
+
+
+def test_transform_arithmetic_negation(program_serializer_transformer):
+    # FIXME: bug in clingo AST API?
+    with pytest.raises(AssertionError):
+        assert equals(program_serializer_transformer.apply(":- X = 1..2, not X < 1."), """
+            rule(r1(X)) :- X = (1..2), not X < 1.
+        """)

@@ -774,3 +774,19 @@ def test_compute_all_minimal_assumption_sets():
         """, true_atoms=["a"], false_atoms=["b", "c"], atom_to_explain="a")
     minimal_assumption_sets = compute_minimal_assumption_sets(serialization)
     assert len(minimal_assumption_sets) == 2
+
+
+def test_rule_with_arithmetic():
+    serialization = compute_serialization("""
+        a(X) :- X = 1..2.
+    """, true_atoms=["a(1)", "a(2)"], false_atoms=[], atom_to_explain="a(1)")
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 0
+    assert compute_explanation(serialization) == compute_stable_model("""
+        explained_by(1,a(2),(support,r1(2))).
+        explained_by(2,a(1),(support,r1(1))).
+    """)
+    assert compute_explanation_dag(serialization) == compute_stable_model("""
+        link(1,a(2),(support,r1(2)),"true").
+        link(2,a(1),(support,r1(1)),"true").
+    """)
