@@ -465,8 +465,12 @@ link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, R
     };
     explained_by(FirstIndex, BAtom, _).
 *%
-{link(Index, Atom, (lack_of_support, Rule), BAtom) : pos_body(Rule, BAtom), false(BAtom), explained_by(Index', BAtom, _);
- link(Index, Atom, (lack_of_support, Rule), BAtom) : neg_body(Rule, BAtom), true (BAtom), explained_by(Index', BAtom, _)} = 1 :- 
+{
+    link(Index, Atom, (lack_of_support, Rule), BAtom) : 
+        pos_body(Rule, BAtom), false(BAtom), explained_by(Index', BAtom, _), Index' < Index;
+    link(Index, Atom, (lack_of_support, Rule), BAtom) : 
+        neg_body(Rule, BAtom), true (BAtom), explained_by(Index', BAtom, _), Index' < Index
+} = 1 :- 
     explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
     head(Rule, Atom).
