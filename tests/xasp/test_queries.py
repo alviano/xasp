@@ -3,7 +3,8 @@ import logging
 import pytest
 
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
-    compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets
+    compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
+    compute_explanations, compute_explanation_dags
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -790,3 +791,50 @@ def test_rule_with_arithmetic():
         link(1,a(2),(support,r1(2)),"true").
         link(2,a(1),(support,r1(1)),"true").
     """)
+
+
+def test_second_explanation():
+    serialization = compute_serialization("""
+        a :- not b.
+        a :- m.
+        m.
+    """, true_atoms=["m", "a"], false_atoms=["b"], atom_to_explain="a")
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 0
+    explanations = [compute_explanation(serialization, minimal_assumption_set)]
+    assert "explained_by(3,a,(support,r2))." in explanations[-1].as_facts
+    explanations.append(compute_explanation(serialization, minimal_assumption_set, explanations))
+    assert "explained_by(3,a,(support,r1))." in explanations[-1].as_facts
+    assert compute_explanation(serialization, minimal_assumption_set, explanations) is None
+
+
+def test_compute_explanations():
+    serialization = compute_serialization("""
+        {a; b}.
+        :- a, not b.
+        :- b, not a.
+        c :- a, b.
+    """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+    explanations = compute_explanations(serialization)
+    assert len(explanations) == 2
+
+
+def test_second_dag():
+    serialization = compute_serialization("""
+            {a; b}.
+            c :- a, b.
+        """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+    explanation = compute_explanation(serialization)
+    dags = [compute_explanation_dag(serialization, explanation)]
+    assert "link(3,c,(lack_of_support,r2),b)." in dags[-1].as_facts
+    dags.append(compute_explanation_dag(serialization, explanation, dags))
+    assert "link(3,c,(lack_of_support,r2),a)." in dags[-1].as_facts
+    assert compute_explanation_dag(serialization, explanation, dags) is None
+
+
+def test_compute_dags():
+    serialization = compute_serialization("""
+            {a; b}.
+            c :- a, b.
+        """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+    assert len(compute_explanation_dags(serialization)) == 2

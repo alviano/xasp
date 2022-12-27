@@ -1,6 +1,7 @@
 from typing import Optional, Any, Final, List
 
 import clingo
+import clingo.ast
 
 from xasp.contexts import ProcessAggregatesContext, ComputeMinimalAssumptionSetContext, ComputeExplanationContext
 from xasp.primitives import Model
@@ -60,12 +61,24 @@ def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to:
     return res
 
 
-def compute_explanation(to_be_explained_serialization: Model) -> Model:
-    assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
+def compute_explanation(to_be_explained_serialization: Model,
+                        assumption_set: Optional[Model] = None,
+                        different_from: Optional[List[Model]] = None) -> Optional[Model]:
+    validate("different_from requires assumption_set", different_from is None or assumption_set is not None,
+             equals=True, help_msg="The assumption set must be provided in order to exclude some explanations")
+    if assumption_set is None:
+        assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
     encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + assumption_set.as_facts + \
                process_aggregates(to_be_explained_serialization).as_facts
+    if different_from:
+        encoding += '\n'.join(model.substitute("explained_by", 1, clingo.Function("_")).block_up
+                              for model in different_from)
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
-    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+
+    if res is None:
+        validate("must have model", different_from is not None, equals=True,
+                 help_msg="No stable model. The input is likely wrong.")
+        return None
 
     def fun(atom):
         fun.index += 1
@@ -75,12 +88,65 @@ def compute_explanation(to_be_explained_serialization: Model) -> Model:
     return res.map(fun)
 
 
-def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
-    explanation = compute_explanation(to_be_explained_serialization)
+def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> List[Model]:
+    if up_to is not None:
+        validate("up_to", up_to, min_value=1)
+    assumption_sets = []
+    res = []
+    while up_to is None or len(res) < up_to:
+        assumption_set = compute_minimal_assumption_set(to_be_explained_serialization, assumption_sets)
+        if assumption_set is None:
+            break
+        assumption_sets.append(assumption_set)
+        while up_to is None or len(res) < up_to:
+            explanation = compute_explanation(to_be_explained_serialization, assumption_set, res)
+            if explanation is None:
+                break
+            res.append(explanation)
+    return res
+
+
+def compute_explanation_dag(to_be_explained_serialization: Model,
+                            explanation: Optional[Model] = None,
+                            different_from: Optional[List[Model]] = None,
+                            assumption_set: Optional[Model] = None) -> Optional[Model]:
+    validate("different_from requires explanation", different_from is None or explanation is not None,
+             equals=True, help_msg="The explanation must be provided in order to exclude some DAG")
+    validate("assumption_set is incompatible with explanation", assumption_set is None or explanation is None,
+             equals=True, help_msg="The explanation cannot be provided if an assumption set is specified")
+    if explanation is None:
+        explanation = compute_explanation(to_be_explained_serialization, assumption_set)
     encoding = EXPLANATION_DAG_ENCODING + explanation.as_facts + \
                process_aggregates(to_be_explained_serialization).as_facts
+    if different_from:
+        encoding += '\n'.join(model.substitute("link", 1, clingo.Function("_")).block_up for model in different_from)
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
-    validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    if not different_from:
+        validate("res", res, help_msg="No stable model. The input is likely wrong.")
+    return res
+
+
+def compute_explanation_dags(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> List[Model]:
+    if up_to is not None:
+        validate("up_to", up_to, min_value=1)
+    assumption_sets = []
+    explanations = []
+    res = []
+    while up_to is None or len(res) < up_to:
+        assumption_set = compute_minimal_assumption_set(to_be_explained_serialization, assumption_sets)
+        if assumption_set is None:
+            break
+        assumption_sets.append(assumption_set)
+        while up_to is None or len(res) < up_to:
+            explanation = compute_explanation(to_be_explained_serialization, assumption_set, explanations)
+            if explanation is None:
+                break
+            explanations.append(explanation)
+            while up_to is None or len(res) < up_to:
+                dag = compute_explanation_dag(to_be_explained_serialization, explanation, res)
+                if dag is None:
+                    break
+                res.append(dag)
     return res
 
 
@@ -389,6 +455,7 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
 :- explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
     #count{Rule : head(Rule, Atom)} = 0.
+%*
 link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, Reason);
     Reason = lack_of_support;
     head(Rule, Atom);
@@ -397,6 +464,12 @@ link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, R
         Index' : neg_body(Rule, BAtom'), true(BAtom'),  explained_by(Index', BAtom', _)
     };
     explained_by(FirstIndex, BAtom, _).
+*%
+{link(Index, Atom, (lack_of_support, Rule), BAtom) : pos_body(Rule, BAtom), false(BAtom), explained_by(Index', BAtom, _);
+ link(Index, Atom, (lack_of_support, Rule), BAtom) : neg_body(Rule, BAtom), true (BAtom), explained_by(Index', BAtom, _)} = 1 :- 
+    explained_by(Index, Atom, Reason);
+    Reason = lack_of_support;
+    head(Rule, Atom).
 
 link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);

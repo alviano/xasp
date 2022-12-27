@@ -61,6 +61,18 @@ class Model:
     def map(self, fun: Callable[[clingo.Symbol], clingo.Symbol]) -> 'Model':
         return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))
 
+    def substitute(self, predicate: str, argument: int, term: clingo.Symbol) -> "Model":
+        validate("argument", argument, min_value=1, help_msg="Argument are indexed from 1")
+
+        def mapping(atom):
+            if atom.name != predicate:
+                return atom
+            return clingo.Function(
+                atom.name,
+                [arg if index != argument else term for index, arg in enumerate(atom.arguments, start=1)]
+            )
+        return self.map(mapping)
+
     @property
     def block_up(self) -> str:
         return ":- " + ", ".join([f"{atom}" for atom in self]) + '.'
