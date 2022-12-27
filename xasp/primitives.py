@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List, Iterable, Union
 
 import clingo
 import typeguard
@@ -14,6 +14,10 @@ class Model:
     value: tuple[clingo.Symbol, ...]
 
     __key = object()
+
+    @staticmethod
+    def empty():
+        return Model(key=Model.__key, value=())
 
     @staticmethod
     def of(control: clingo.Control) -> Optional["Model"]:
@@ -34,6 +38,19 @@ class Model:
         if on_model.exception:
             raise ValueError("more than one stable model")
         return on_model.res
+
+    @staticmethod
+    def of_program(program: str) -> Optional["Model"]:
+        control = clingo.Control()
+        control.add("base", [], program)
+        control.ground([("base", [])])
+        return Model.of(control)
+
+    @staticmethod
+    def of_atoms(*args: Union[str, Iterable[str]]) -> Optional["Model"]:
+        return Model.of_program('\n'.join(f"{element}." if type(element) is str else
+                                          '\n'.join(f"{atom}." for atom in element)
+                                          for element in args))
 
     def __post_init__(self, key: Any):
         validate("create key", key, equals=self.__key,

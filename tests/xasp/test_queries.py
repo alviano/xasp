@@ -2,6 +2,7 @@ import logging
 
 import pytest
 
+from xasp.primitives import Model
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
     compute_explanations, compute_explanation_dags
@@ -24,7 +25,7 @@ def test_compute_program_serialization():
     model = compute_serialization("""
         a.
         b :- a, not c.
-    """, true_atoms="a b".split(), false_atoms="c".split())
+    """, answer_set=Model.of_atoms("a", "b"), base=Model.of_atoms("a", "b", "c"))
     assert model == compute_stable_model("""
         rule(r1).
           head(r1,a).
@@ -43,7 +44,7 @@ def test_compute_program_serialization():
 def test_compute_program_serialization_for_aggregates_with_two_bounds():
     model = compute_serialization("""
         :- 0 <= #sum{X : p(X)} <= 1.
-    """, true_atoms="p(-1) p(1)".split(), false_atoms="p(2)".split())
+    """, answer_set=Model.of_atoms("p(-1)", "p(1)"), base=Model.of_atoms("p(-1)", "p(1)", "p(2)"))
     assert model == compute_stable_model("""
         rule(r1).
           pos_body(r1,agg1).
@@ -545,25 +546,30 @@ def test_deal_with_symbolic_program_and_aggregates(example5):
 
 
 def test_serialization_with_propositional_aggregates(example1, example2, example3):
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", true_atoms=["a", "b"],
-                                 false_atoms=["c"]) == example1
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", true_atoms=["a"],
-                                 false_atoms=["b", "c"]) == example2
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", answer_set=Model.of_atoms(["a", "b"]),
+                                 base=Model.of_atoms("a", "b", "c")) == example1
+    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", answer_set=Model.of_atoms(["a"]),
+                                 base=Model.of_atoms("a", "b", "c")) == example2
     assert compute_serialization("body.  1 <= {a; b; c} <= 2 :- body.  d :- b.",
-                                 true_atoms=["body", "a"], false_atoms="b c d".split()) == example3
+                                 answer_set=Model.of_atoms("body", "a"),
+                                 base=Model.of_atoms("body a b c d".split())) == example3
 
 
 def test_serialization_with_symbolic_program(example4, example5):
-    assert compute_serialization("""
-        {a(1); a(2)}.
-        {b(X)} :- a(X).
-        c(X) :- a(X), not b(X).
-    """, true_atoms="a(1) a(2) b(1) c(2)".split(), false_atoms="b(2) c(1)".split()) == example4
+    assert compute_serialization(
+        """
+            {a(1); a(2)}.
+            {b(X)} :- a(X).
+            c(X) :- a(X), not b(X).
+        """,
+        answer_set=Model.of_atoms("a(1) a(2) b(1) c(2)".split()),
+        base=Model.of_atoms("a(1) a(2) b(1) c(2) b(2) c(1)".split())) == example4
     assert compute_serialization("""
         a(1).
         {b(X,0); b(X,1)} :- a(X).
         c :- a(X), #sum{Y : b(X,Y)} >= X.
-    """, true_atoms="a(1) b(1,0)".split(), false_atoms="b(1,1) c".split()) == example5
+    """, answer_set=Model.of_atoms("a(1) b(1,0)".split()),
+                                 base=Model.of_atoms("a(1) b(1,0) b(1,1) c".split())) == example5
 
 
 @pytest.fixture
@@ -585,7 +591,7 @@ def running_example_1():
         sink(c).
         
         threshold(0).
-    """, true_atoms=[atom.strip() for atom in """
+    """, answer_set=Model.of_atoms(atom.strip() for atom in """
         edge(a,b)
         edge(a,d)
         edge(d,c)
@@ -603,7 +609,7 @@ def running_example_1():
         arc(a,d)
         arc(d,c)
         threshold(0)
-    """.split('\n')], false_atoms=[atom.strip() for atom in """
+    """.strip().split('\n')), base=Model.of_atoms(atom.strip() for atom in """
         arc(a,b)
         arc(d,a)
         arc(c,d)
@@ -618,7 +624,7 @@ def running_example_1():
         reach(d,b)
         reach(d,c)
         reach(d,d)
-    """.split('\n')])
+    """.strip().split('\n')))
 
 
 def test_running_example_1(running_example_1):
@@ -629,9 +635,12 @@ def test_running_example_1(running_example_1):
 
 
 def test_process_aggregate_with_variables():
-    assert compute_serialization("""
-        :- a(X), #sum{Y : b(X,Y)} > 0.
-    """, true_atoms="a(1) a(2) b(1,2)".split(), false_atoms=["b(2,1)"]) == compute_stable_model("""
+    assert compute_serialization(
+        """
+            :- a(X), #sum{Y : b(X,Y)} > 0.
+        """,
+        answer_set=Model.of_atoms("a(1) a(2) b(1,2)".split()),
+        base=Model.of_atoms("b(2,1)")) == compute_stable_model("""
         rule(r1(1)).
             pos_body(r1(1), a(1)).
             pos_body(r1(1), agg1(1)).
@@ -653,22 +662,23 @@ def test_lack_of_explanation_1():
     serialization = compute_serialization("""
         a :- not b. 
         b :- not a.
-    """, true_atoms=['b'], false_atoms=['a'], atom_to_explain='a')
+    """, answer_set=Model.of_atoms('b'), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms('a'))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     assert minimal_assumption_set == compute_stable_model("assume_false(a).")
 
 
 def test_lack_of_explanation_2():
-    serialization = compute_serialization("{a}.", true_atoms=[], false_atoms=['a'], atom_to_explain='a')
+    serialization = compute_serialization("{a}.", answer_set=Model.of_atoms(), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms('a'))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     assert minimal_assumption_set == compute_stable_model("assume_false(a).")
 
 
 def test_lack_of_explanation_3():
-    serialization = compute_serialization("a :- #sum{1 : a} >= 0.", true_atoms=['a'], false_atoms=[],
-                                          atom_to_explain='a')
+    serialization = compute_serialization("a :- #sum{1 : a} >= 0.", answer_set=Model.of_atoms('a'),
+                                          base=Model.of_atoms(),
+                                          atoms_to_explain=Model.of_atoms('a'))
     with pytest.raises(TypeError):
         compute_minimal_assumption_set(serialization)
 
@@ -678,7 +688,7 @@ def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
         a :- not b.
         b :- not a.
         :- b.
-    """, true_atoms=['a'], false_atoms=['b'], atom_to_explain="a")
+    """, answer_set=Model.of_atoms('a'), base=Model.of_atoms('b'), atoms_to_explain=Model.of_atoms("a"))
     dag = compute_explanation_dag(serialization)
     assert dag == compute_stable_model("""
         link(1,b,(required_to_falsify_body,r3),"false").
@@ -689,7 +699,7 @@ def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
 def test_atom_inferred_by_choice_rules_can_be_linked_to_false():
     serialization = compute_serialization("""
         {a} <= 0.
-    """, true_atoms=[], false_atoms=['a'], atom_to_explain="a")
+    """, answer_set=Model.of_atoms(), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms("a"))
     dag = compute_explanation_dag(serialization)
     assert dag == compute_stable_model("""
         link(1,a,(choice_rule,r1),"false").
@@ -737,7 +747,7 @@ def test_3_col():
     color(yellow).
 
     :- edge(X,Y), colored(X, Z), colored(Y, Z).
-    """, true_atoms=true_atoms, false_atoms=[atom.strip() for atom in """
+    """, answer_set=Model.of_atoms(true_atoms), base=Model.of_atoms(atom.strip() for atom in """
     colored(3,yellow)
     colored(3,red)
     colored(2,yellow)
@@ -748,7 +758,7 @@ def test_3_col():
     colored(1,red)
     colored(5,blue)
     colored(2,red)
-    """.strip().split('\n')], atom_to_explain="colored(4,red)")
+    """.strip().split('\n')), atoms_to_explain=Model.of_atoms("colored(4,red)"))
     dag = compute_explanation_dag(serialization)
     assert len(dag) == 55
 
@@ -759,7 +769,7 @@ def test_compute_second_minimal_assumption_set():
         b :- not a.
         c :- not a.
         a :- not c.
-    """, true_atoms=["a"], false_atoms=["b", "c"], atom_to_explain="a")
+    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("b", "c"), atoms_to_explain=Model.of_atoms("a"))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     minimal_assumption_set = compute_minimal_assumption_set(serialization, [minimal_assumption_set])
@@ -772,7 +782,7 @@ def test_compute_all_minimal_assumption_sets():
             b :- not a.
             c :- not a.
             a :- not c.
-        """, true_atoms=["a"], false_atoms=["b", "c"], atom_to_explain="a")
+        """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("b", "c"), atoms_to_explain=Model.of_atoms("a"))
     minimal_assumption_sets = compute_minimal_assumption_sets(serialization)
     assert len(minimal_assumption_sets) == 2
 
@@ -780,7 +790,7 @@ def test_compute_all_minimal_assumption_sets():
 def test_rule_with_arithmetic():
     serialization = compute_serialization("""
         a(X) :- X = 1..2.
-    """, true_atoms=["a(1)", "a(2)"], false_atoms=[], atom_to_explain="a(1)")
+    """, answer_set=Model.of_atoms("a(1)", "a(2)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(1)"))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 0
     assert compute_explanation(serialization) == compute_stable_model("""
@@ -798,7 +808,7 @@ def test_second_explanation():
         a :- not b.
         a :- m.
         m.
-    """, true_atoms=["m", "a"], false_atoms=["b"], atom_to_explain="a")
+    """, answer_set=Model.of_atoms("m", "a"), base=Model.of_atoms("b"), atoms_to_explain=Model.of_atoms("a"))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 0
     explanations = [compute_explanation(serialization, minimal_assumption_set)]
@@ -814,16 +824,16 @@ def test_compute_explanations():
         :- a, not b.
         :- b, not a.
         c :- a, b.
-    """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
     explanations = compute_explanations(serialization)
     assert len(explanations) == 2
 
 
 def test_second_dag():
     serialization = compute_serialization("""
-            {a; b}.
-            c :- a, b.
-        """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+        {a; b}.
+        c :- a, b.
+    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
     explanation = compute_explanation(serialization)
     dags = [compute_explanation_dag(serialization, explanation)]
     assert "link(3,c,(lack_of_support,r2),b)." in dags[-1].as_facts
@@ -834,25 +844,41 @@ def test_second_dag():
 
 def test_compute_dags():
     serialization = compute_serialization("""
-            {a; b}.
-            c :- a, b.
-        """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
+        {a; b}.
+        c :- a, b.
+    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
     assert len(compute_explanation_dags(serialization)) == 2
 
 
 def test_choice_rule_with_condition_arithmetic():
     serialization = compute_serialization("""
-                {a(X) : X = 1..2} = 1.
-            """, true_atoms=["a(1)"], false_atoms=["a(2)"], atom_to_explain="a(2)")
+        {a(X) : X = 1..2} = 1.
+    """, answer_set=Model.of_atoms("a(1)"), base=Model.of_atoms("a(2)"), atoms_to_explain=Model.of_atoms("a(2)"))
     explanation = compute_explanation(serialization)
     assert "explained_by(2,a(2),(choice_rule,r1))." in explanation.as_facts
 
 
 def test_choice_rule_with_condition_involving_atoms():
     serialization = compute_serialization("""
-                {a(X) : X = 1..5, b(X)} = 1.
-                b(0).
-                b(3).
-            """, true_atoms=["a(3)", "b(0)", "b(3)"], false_atoms=[], atom_to_explain="a(3)")
+        {a(X) : X = 1..5, b(X)} = 1.
+        b(0).
+        b(3).
+    """, answer_set=Model.of_atoms("a(3)", "b(0)", "b(3)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(3)"))
     dag = compute_explanation_dag(serialization)
     assert 'link(3,a(3),(support,r1),"true").' in dag.as_facts
+
+
+def test_rule_with_compressed_head():
+    serialization = compute_serialization("""
+        a(1;2).
+    """, answer_set=Model.of_atoms("a(1)", "a(2)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(1)"))
+    explanation = compute_explanation(serialization)
+    assert "explained_by(1,a(1),(support,r1))." in explanation.as_facts
+
+
+def test_strong_negation():
+    serialization = compute_serialization("""
+        -a.
+    """, answer_set=Model.of_atoms("-a"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("-a"))
+    explanation = compute_explanation(serialization)
+    assert "explained_by(1,-a,(support,r1))." in explanation.as_facts

@@ -49,3 +49,9 @@ def test_model_block_up():
     control.add("base", [], "a. b.")
     control.ground([("base", [])])
     assert Model.of(control).block_up == ":- a, b."
+
+
+def test_model_of_atoms():
+    assert Model.of_atoms("a").as_facts == "a."
+    assert Model.of_atoms("abc").as_facts == "abc."
+    assert Model.of_atoms("a b c".split()).as_facts == "a.\nb.\nc."

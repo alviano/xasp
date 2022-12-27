@@ -16,15 +16,15 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     return Model.of(control)
 
 
-def compute_serialization(asp_program: str, true_atoms: List[str], false_atoms: List[str],
-                          atom_to_explain: Optional[str] = None) -> Model:
+def compute_serialization(asp_program: str, answer_set: Model, base: Model,
+                          atoms_to_explain: Model = Model.empty()) -> Model:
     transformer = ProgramSerializerTransformer()
     transformed_program = transformer.apply(asp_program)
     return compute_stable_model(
         SERIALIZATION_ENCODING + transformed_program +
-        '\n'.join(f"true({atom})." for atom in true_atoms) +
-        '\n'.join(f"false({atom})." for atom in false_atoms) +
-        ('' if atom_to_explain is None else f"explain({atom_to_explain}).")
+        '\n'.join(f"true({atom})." for atom in answer_set) +
+        '\n'.join(f"atom({atom})." for atom in base) +
+        '\n'.join(f"explain({atom})." for atom in atoms_to_explain)
     )
 
 
@@ -518,7 +518,7 @@ explained_by(0,0,0) :- #false.
 
 SERIALIZATION_ENCODING: Final = """
 atom(Atom) :- true(Atom).
-atom(Atom) :- false(Atom).
+false(Atom) :- atom(Atom), not true(Atom).
 
 #show.
 #show rule/1.
@@ -541,6 +541,6 @@ neg_body(0,0) :- #false.
 aggregate(0,0,0,0) :- #false.
 agg_set(0,0,0,0) :- #false.
 true(0) :- #false.
-false(0) :- #false.
+atom(0) :- #false.
 explain(0) :- #false.
 """
