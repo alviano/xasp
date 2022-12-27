@@ -838,3 +838,11 @@ def test_compute_dags():
             c :- a, b.
         """, true_atoms=[], false_atoms=["a", "b", "c"], atom_to_explain="c")
     assert len(compute_explanation_dags(serialization)) == 2
+
+
+def test_choice_rule_with_condition():
+    serialization = compute_serialization("""
+                {a(X) : X = 1..2} = 1.
+            """, true_atoms=["a(1)"], false_atoms=["a(2)"], atom_to_explain="a(2)")
+    explanation = compute_explanation(serialization)
+    assert "explained_by(2,a(2),(choice_rule,r1))." in explanation.as_facts

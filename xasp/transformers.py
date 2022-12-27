@@ -62,11 +62,7 @@ class ProgramSerializerTransformer(Transformer):
         if str(head) != "#false":
             validate("head type", head.ast_type, is_in=(ASTType.Aggregate, ASTType.Literal))
             if head.ast_type == ASTType.Aggregate:
-                lower_bound, upper_bound = self.__compute_choice_bounds(head)
-                self.add_to_result(f"choice({rule_id},{lower_bound},{upper_bound}) :- {rule_atom}.")
-                for element in head.elements:
-                    validate("condition is empty", element.condition, length=0)
-                    self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}.")
+                self.__process_choice(head, rule_id, rule_atom)
             else:
                 validate("positive head", head.sign, equals=False)
                 self.add_to_result(f"head({rule_id},{head}) :- {rule_atom}.")
@@ -90,13 +86,13 @@ class ProgramSerializerTransformer(Transformer):
         return node
 
     @staticmethod
-    def __compute_rule_body(body):
+    def __compute_rule_body(body, atom_predicate: str = "atom"):
         res = []
         for literal in body:
             if literal.atom.ast_type == ASTType.Comparison:
                 res.append(f"{literal}")
             elif literal.sign == Sign.NoSign and literal.atom.ast_type == ASTType.SymbolicAtom:
-                res.append(f"atom({literal.atom})")
+                res.append(f"{atom_predicate}({literal.atom})")
         return ", ".join(res)
 
     @staticmethod
@@ -125,6 +121,22 @@ class ProgramSerializerTransformer(Transformer):
             elif choice.right_guard.comparison == ComparisonOperator.LessEqual:
                 right = f"{choice.right_guard.term}"
         return left, right
+
+    def __process_choice(self, head, rule_id, rule_atom):
+        lower_bound, upper_bound = self.__compute_choice_bounds(head)
+        self.add_to_result(f"choice({rule_id},{lower_bound},{upper_bound}) :- {rule_atom}.")
+        if len(head.elements) > 1:
+            for element in head.elements:
+                validate("condition is empty", element.condition, length=0,
+                         help_msg="Multiple elements are only supported without conditions")
+                self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}.")
+        elif len(head.elements) == 1:
+            element = head.elements[0]
+            if len(element.condition) == 0:
+                self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}.")
+            else:
+                condition = self.__compute_rule_body(element.condition, "true")
+                self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}, {condition}.")
 
     def __process_aggregate(self, literal, rule_id, rule_atom):
         if literal.atom.right_guard is None:

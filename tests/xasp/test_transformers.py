@@ -127,9 +127,17 @@ def test_transform_datalog_rule_symbolic_multiple_variables(program_serializer_t
     """)
 
 
-def test_transform_choice_rule_must_not_have_condition(program_serializer_transformer):
+def test_transform_choice_rule_with_condition_must_have_one_element(program_serializer_transformer):
     with pytest.raises(ValueError):
-        program_serializer_transformer.apply("{a(X) : b(X)}.")
+        program_serializer_transformer.apply("{a(X) : c(X); b(X) : c(X)}.")
+
+
+def test_transform_choice_rule_with_atomic_condition(program_serializer_transformer):
+    assert equals(program_serializer_transformer.apply("{a(X) : b(X)} = 1."), """
+        rule(r1) :- .
+            choice(r1,1,1) :- rule(r1).
+            head(r1,a(X)) :- rule(r1), true(b(X)).
+    """)
 
 
 def test_transform_choice_rule_multiple_atoms(program_serializer_transformer):
