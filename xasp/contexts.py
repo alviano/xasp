@@ -2,7 +2,7 @@ import dataclasses
 from collections import defaultdict, namedtuple
 from functools import cached_property
 
-from clingo import Number, String
+from clingo import Number
 
 from xasp.utils import log
 
@@ -28,7 +28,7 @@ class ProcessAggregatesContext:
 
 
 @dataclasses.dataclass(frozen=True)
-class ComputeMinimalAssumptionSetContext:
+class ComputeWellFoundedContext:
     Rule = namedtuple("Rule", "id head pos_body neg_body")
     WellFoundedModel = namedtuple("WellFoundedModel", "true potentially_true")
 
@@ -36,10 +36,6 @@ class ComputeMinimalAssumptionSetContext:
     atom2heads: dict = dataclasses.field(default_factory=lambda: defaultdict(list))
     atom2pos_bodies: dict = dataclasses.field(default_factory=lambda: defaultdict(list))
     atom2neg_bodies: dict = dataclasses.field(default_factory=lambda: defaultdict(list))
-
-    @staticmethod
-    def output(atom, explanation):
-        return String(f"{atom} explained by {explanation}")
 
     def collect_rule(self, rule):
         assert rule not in self.rules.keys()
@@ -139,12 +135,9 @@ class ComputeMinimalAssumptionSetContext:
                     source_pointer[head_atom] = rule
                     my_queue.append(head_atom)
 
-    def index(self):
-        return Number(0)
-
 
 @dataclasses.dataclass(frozen=True)
-class ComputeExplanationContext(ComputeMinimalAssumptionSetContext):
+class ComputeExplanationContext:
     __index: list[int] = dataclasses.field(default_factory=lambda: [0], init=False)
 
     def index(self):

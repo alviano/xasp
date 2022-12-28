@@ -5,7 +5,7 @@ import pytest
 from xasp.primitives import Model
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
-    compute_explanations, compute_explanation_dags
+    compute_explanations, compute_explanation_dags, create_explanation, compute_atoms_explained_by_initial_well_founded
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -45,6 +45,7 @@ def test_compute_program_serialization_for_aggregates_with_two_bounds():
     model = compute_serialization("""
         :- 0 <= #sum{X : p(X)} <= 1.
     """, answer_set=Model.of_atoms("p(-1)", "p(1)"), base=Model.of_atoms("p(-1)", "p(1)", "p(2)"))
+    print(model.as_facts)
     assert model == compute_stable_model("""
         rule(r1).
           pos_body(r1,agg1).
@@ -327,7 +328,6 @@ def test_compute_explanation(example1, example2, example3):
         """)
     ]
     model = compute_explanation(example3)
-    print(model.as_facts)
     assert model in [
         compute_stable_model("""
             explained_by(1,c,assumption).
@@ -804,19 +804,6 @@ def test_3_col():
     assert len(dag) == 55
 
 
-def test_compute_second_minimal_assumption_set():
-    serialization = compute_serialization("""
-        a :- not b.
-        b :- not a.
-        c :- not a.
-        a :- not c.
-    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("b", "c"), atoms_to_explain=Model.of_atoms("a"))
-    minimal_assumption_set = compute_minimal_assumption_set(serialization)
-    assert len(minimal_assumption_set) == 1
-    minimal_assumption_set = compute_minimal_assumption_set(serialization, [minimal_assumption_set])
-    assert len(minimal_assumption_set) == 1
-
-
 def test_compute_all_minimal_assumption_sets():
     serialization = compute_serialization("""
             a :- not b.
@@ -844,21 +831,6 @@ def test_rule_with_arithmetic():
     """)
 
 
-def test_second_explanation():
-    serialization = compute_serialization("""
-        a :- not b.
-        a :- m.
-        m.
-    """, answer_set=Model.of_atoms("m", "a"), base=Model.of_atoms("b"), atoms_to_explain=Model.of_atoms("a"))
-    minimal_assumption_set = compute_minimal_assumption_set(serialization)
-    assert len(minimal_assumption_set) == 0
-    explanations = [compute_explanation(serialization, minimal_assumption_set)]
-    assert "explained_by(3,a,(support,r2))." in explanations[-1].as_facts
-    explanations.append(compute_explanation(serialization, minimal_assumption_set, explanations))
-    assert "explained_by(3,a,(support,r1))." in explanations[-1].as_facts
-    assert compute_explanation(serialization, minimal_assumption_set, explanations) is None
-
-
 def test_compute_explanations():
     serialization = compute_serialization("""
         {a; b}.
@@ -868,19 +840,6 @@ def test_compute_explanations():
     """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
     explanations = compute_explanations(serialization)
     assert len(explanations) == 2
-
-
-def test_second_dag():
-    serialization = compute_serialization("""
-        {a; b}.
-        c :- a, b.
-    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
-    explanation = compute_explanation(serialization)
-    dags = [compute_explanation_dag(serialization, explanation)]
-    assert "link(3,c,(lack_of_support,r2),b)." in dags[-1].as_facts
-    dags.append(compute_explanation_dag(serialization, explanation, dags))
-    assert "link(3,c,(lack_of_support,r2),a)." in dags[-1].as_facts
-    assert compute_explanation_dag(serialization, explanation, dags) is None
 
 
 def test_compute_dags():
@@ -920,9 +879,8 @@ def test_rule_with_compressed_head():
 def test_strong_negation():
     serialization = compute_serialization("""
         {a; -a}.
-    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("atom(a)", "atom(-a)"),
-                                          atoms_to_explain=Model.of_atoms("a"),
-                                          base_in_predicate_atom=True)
+    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("a", "-a"),
+                                          atoms_to_explain=Model.of_atoms("a"))
     explanation = compute_explanation(serialization)
     assert "explained_by(2,-a,(required_to_falsify_body,r2))." in explanation.as_facts
 
@@ -935,34 +893,25 @@ def test_atoms_in_negative_literals_are_added_to_the_base_during_serialization()
     assert len(minimal_assumption_set) == 0
 
 
-# def test_xai_example():
-#     # with open(utils.PROJECT_ROOT / f"examples/xai.lp") as f:
-#     #     program = '\n'.join(f.readlines())
-#     with open(utils.PROJECT_ROOT / f"examples/xai.answer_set.lp") as f:
-#         # $ clingo xai.lp --outf=1 | grep -v "^ANSWER$" | grep -v "^%" > xai_small.answer_set.lp
-#         answer_set = Model.of_program('\n'.join(f.readlines()))
-#     # with open(utils.PROJECT_ROOT / f"examples/xai.base.lp") as f:
-#     #     # $ clingo --text xai.lp | grep -v "^:-" | sed "s/:-.*/./" | sort -u | sed "s/.$//" > xai.base.lp
-#     #     base = Model.of_atoms(f"atom({atom.strip()})" for atom in f.readlines())
-#     #
-#     # serialization = compute_serialization(
-#     #     program,
-#     #     answer_set=answer_set,
-#     #     base=base,
-#     #     atoms_to_explain=Model.of_atoms("behaves_inertially(testing_posTestNeg,121)"),
-#     #     base_in_predicate_atom=True,
-#     # )
-#     # minimal_assumption_set = compute_minimal_assumption_set(serialization)
-#     # assert len(minimal_assumption_set) == 1
-#     # print(minimal_assumption_set)
-#     # explanation = compute_explanation(serialization, assumption_set=minimal_assumption_set)
-#     # print(len(explanation))
-#     # dag = compute_explanation_dag(serialization, explanation=explanation)
-#     # with open("/tmp/a.txt", "w") as f:
-#     #     f.writelines(explanation.as_facts)
-#     #     f.writelines(dag.as_facts)
-#     with open(utils.PROJECT_ROOT / "examples/xai.dag.lp") as f:
-#         dag = Model.of_program('\n'.join(f.readlines()))
-#     commands.save_explanation_dag(dag, answer_set, Model.of_atoms("behaves_inertially(testing_posTestNeg,121)"), "/tmp/a.png",
-#                                   bbox=(8000, 4000))
-#     assert False
+def test_compute_well_founded():
+    serialization = compute_serialization("""
+        a :- c, not b.
+        b :- not a.
+        c.
+        d :- e, not f.
+        d :- f, not g.
+        d :- h.
+        e :- d.
+        f :- e.
+        f :- not c.
+        i :- c, not d.
+    """, answer_set=Model.of_atoms("c", "i", "a"), base=Model.of_atoms("a b c d e f g h i".split()),
+                                          atoms_to_explain=Model.empty())
+    well_founded = compute_atoms_explained_by_initial_well_founded(serialization)
+    assert compute_stable_model("""
+        explained_by(d,initial_well_founded).
+        explained_by(e,initial_well_founded).
+        explained_by(f,initial_well_founded).
+        explained_by(g,initial_well_founded).
+        explained_by(h,initial_well_founded).
+    """) == well_founded

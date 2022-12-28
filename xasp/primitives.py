@@ -48,9 +48,13 @@ class Model:
 
     @staticmethod
     def of_atoms(*args: Union[str, Iterable[str]]) -> Optional["Model"]:
-        return Model.of_program('\n'.join(f"{element}." if type(element) is str else
-                                          '\n'.join(f"{atom}." for atom in element)
-                                          for element in args))
+        flattened = []
+        for element in args:
+            if type(element) is str:
+                flattened.append(clingo.parse_term(element))
+            else:
+                flattened.extend(clingo.parse_term(atom) for atom in element)
+        return Model(key=Model.__key, value=tuple(flattened))
 
     def __post_init__(self, key: Any):
         validate("create key", key, equals=self.__key,
@@ -77,6 +81,9 @@ class Model:
 
     def map(self, fun: Callable[[clingo.Symbol], clingo.Symbol]) -> 'Model':
         return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))
+
+    def rename(self, predicate: str, new_name: str) -> "Model":
+        return self.map(lambda atom: atom if atom.name != predicate else clingo.Function(new_name, atom.arguments))
 
     def substitute(self, predicate: str, argument: int, term: clingo.Symbol) -> "Model":
         validate("argument", argument, min_value=1, help_msg="Argument are indexed from 1")
