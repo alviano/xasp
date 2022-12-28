@@ -1,9 +1,11 @@
 import dataclasses
 from dataclasses import InitVar
 from enum import auto, IntEnum
+from pathlib import Path
 from typing import Callable, Final, Optional, Tuple, Dict, List
 
 import clingo
+import igraph
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
 from xasp.primitives import Model
@@ -26,6 +28,7 @@ class Explanation:
     __minimal_assumption_sets: List[Model] = dataclasses.field(default_factory=list, init=False)
     __explanation_sequences: List[Model] = dataclasses.field(default_factory=list, init=False)
     __explanation_dags: List[Model] = dataclasses.field(default_factory=list, init=False)
+    __igraph: Optional[igraph.Graph] = dataclasses.field(default=None, init=False)
 
     def __post_init__(
             self,
@@ -41,23 +44,48 @@ class Explanation:
         MINIMAL_ASSUMPTION_SET_COMPUTED = auto()
         EXPLANATION_SEQUENCE_COMPUTED = auto()
         EXPLANATION_DAG_COMPUTED = auto()
+        IGRAPH_COMPUTED = auto()
 
-    def given(self,
-              the_asp_program: str = "",
-              the_answer_set: Model = Model.empty(),
-              the_atoms_to_explain: Model = Model.empty(),
-              the_additional_atoms_in_the_base: Model = Model.empty()):
+    def given_the_program(self,
+                          value: str = "",
+                          the_answer_set: Model = Model.empty(),
+                          the_atoms_to_explain: Model = Model.empty(),
+                          the_additional_atoms_in_the_base: Model = Model.empty()
+                          ) -> "Explanation":
         validate("state", self.__state, equals=Explanation.State.INITIAL)
-        self.__asp_program = the_asp_program
+        self.__asp_program = value
         self.__answer_set = the_answer_set
         self.__atoms_to_explain = the_atoms_to_explain
         self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
         return self.compute_serialization()
 
-    def given_the_serialization(self, value: Model) -> "Explanation":
+    def given_the_serialization(self,
+                                value: Model,
+                                the_answer_set: Optional[Model] = None,
+                                the_atoms_to_explain: Optional[Model] = None,
+                                the_additional_atoms_in_the_base: Model = Model.empty(),
+                                ) -> "Explanation":
         validate("state", self.__state, equals=Explanation.State.INITIAL)
         self.__serialization = value
+        self.__answer_set = the_answer_set
+        self.__atoms_to_explain = the_atoms_to_explain
+        self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
         self.__state = Explanation.State.SERIALIZED
+        return self
+
+    def given_the_dag(self,
+                      value: Model,
+                      the_answer_set: Optional[Model] = None,
+                      the_atoms_to_explain: Optional[Model] = None,
+                      the_additional_atoms_in_the_base: Model = Model.empty(),
+                      ) -> "Explanation":
+        validate("state", self.__state, equals=Explanation.State.INITIAL)
+        self.__explanation_dags.append(value)
+        self.__state = Explanation.State.SERIALIZED
+        self.__answer_set = the_answer_set
+        self.__atoms_to_explain = the_atoms_to_explain
+        self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
+        self.__state = Explanation.State.EXPLANATION_DAG_COMPUTED
         return self
 
     def compute_serialization(self) -> "Explanation":
@@ -136,6 +164,42 @@ class Explanation:
                 if len(self.__explanation_sequences) == sequences:
                     break
         self.__state = Explanation.State.EXPLANATION_DAG_COMPUTED
+        return self
+
+    def compute_igraph(self) -> "Explanation":
+        validate("answer_set", self.__answer_set, help_msg="Answer set was not provided")
+        validate("atoms_to_explain", self.__atoms_to_explain, help_msg="Atoms to explain were not provided")
+        validate("additional_atoms_in_the_base", self.__additional_atoms_in_the_base,
+                 help_msg="Additional atoms were not provided")
+        if self.__state < Explanation.State.EXPLANATION_DAG_COMPUTED:
+            self.compute_explanation_dags()
+        validate("state", self.__state, min_value=Explanation.State.EXPLANATION_DAG_COMPUTED)
+        self.__igraph = self.__compute_igraph(dag=self.__explanation_dags[-1])
+        self.__state = Explanation.State.IGRAPH_COMPUTED
+        return self
+
+    def save_igraph(self, filename: Path, distance: Optional[int] = None, **kwargs) -> "Explanation":
+        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+        validate("distance", distance is None or distance > 0, equals=True)
+        graph = self.__igraph
+        reachable_nodes = graph.neighborhood(
+            vertices=[str(atom) for atom in self.__atoms_to_explain],
+            order=len(graph.vs) if distance is None else distance,
+            mode="out"
+        )
+        nodes = []
+        for reachable_nodes_element in reachable_nodes:
+            nodes.extend(reachable_nodes_element)
+        graph = graph.induced_subgraph(nodes)
+        igraph.plot(
+            graph,
+            layout=graph.layout_kamada_kawai(),
+            margin=140,
+            target=filename,
+            vertex_label_dist=2,
+            vertex_size=8,
+            **kwargs,
+        )
         return self
 
     @property
@@ -255,6 +319,24 @@ class Explanation:
             validate("res", res, help_msg="No stable model. The input is likely wrong.")
         return res
 
+    def __compute_igraph(self, dag: Model) -> igraph.Graph:
+        answer_set_as_strings = [str(atom) for atom in self.answer_set]
+        graph = igraph.Graph(directed=True)
+        graph.add_vertex('"true"', color=TRUE_COLOR, label="#true")
+        graph.add_vertex('"false"', color=FALSE_COLOR, label="#false")
+        for link in dag:
+            validate("link name", link.name, equals="link")
+            _, source, label, sink = (str(x) for x in link.arguments)
+            validate("sink is present", graph.vs.select(name=sink), length=1)
+            if len(graph.vs.select(name=source)) == 0:
+                color = TRUE_COLOR if source in answer_set_as_strings else FALSE_COLOR
+                graph.add_vertex(source, color=color, label=source)
+            graph.add_edge(source, sink, label=label)
+        return graph
+
+
+TRUE_COLOR: Final = "green"
+FALSE_COLOR: Final = "red"
 
 PROCESS_AGGREGATES_ENCODING: Final = """
 %******************************************************************************

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xasp"
-version = "0.3.2"
+version = "0.3.3"
 description = "Encodings for eXplainable Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 
@@ -13,6 +13,7 @@ valid8 = "^5.1.2"
 dateutils = "^0.6.12"
 igraph = "^0.10.2"
 cairocffi = "^1.4.0"
+Pillow = "^9.3.0"
 
 [tool.poetry.dev-dependencies]
 coverage = "^6.5.0"

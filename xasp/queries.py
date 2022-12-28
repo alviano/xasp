@@ -20,8 +20,8 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
 
 def compute_serialization(asp_program: str, answer_set: Model, base: Model,
                           atoms_to_explain: Model = Model.empty()) -> Model:
-    return create_explanation().given(
-        the_asp_program=asp_program,
+    return create_explanation().given_the_program(
+        asp_program,
         the_answer_set=answer_set,
         the_atoms_to_explain=atoms_to_explain,
         the_additional_atoms_in_the_base=base,
