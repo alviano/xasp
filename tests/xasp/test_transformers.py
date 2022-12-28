@@ -277,3 +277,9 @@ def test_transform_arithmetic_negation(program_serializer_transformer):
         assert equals(program_serializer_transformer.apply(":- X = 1..2, not X < 1."), """
             rule(r1(X)) :- X = (1..2), not X < 1.
         """)
+
+
+def test_transform_const_directive(program_serializer_transformer):
+    assert equals(program_serializer_transformer.apply("#const foo = bar."), """
+        #const foo = bar.
+    """)

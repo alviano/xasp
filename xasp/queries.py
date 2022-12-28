@@ -17,13 +17,24 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
 
 
 def compute_serialization(asp_program: str, answer_set: Model, base: Model,
-                          atoms_to_explain: Model = Model.empty()) -> Model:
+                          atoms_to_explain: Model = Model.empty(),
+                          base_in_predicate_atom: bool = False) -> Model:
+    if base_in_predicate_atom:
+        for atom in base:
+            validate("must use predicate atom/1", atom.name == "atom" and len(atom.arguments) == 1, equals=True)
+        base_atoms = [str(atom)[5:-1] for atom in base]
+    else:
+        base_atoms = [str(atom) for atom in base]
+
+    strongly_negated_atoms = {str(atom)[1:] for atom in answer_set if str(atom).startswith('-')}
+    strongly_negated_atoms.update(atom[1:] for atom in base_atoms if atom.startswith('-'))
     transformer = ProgramSerializerTransformer()
-    transformed_program = transformer.apply(asp_program)
+    transformed_program = transformer.apply(asp_program + '\n'.join(f":- {atom}, -{atom}."
+                                                                    for atom in strongly_negated_atoms))
     return compute_stable_model(
         SERIALIZATION_ENCODING + transformed_program +
         '\n'.join(f"true({atom})." for atom in answer_set) +
-        '\n'.join(f"atom({atom})." for atom in base) +
+        '\n'.join(f"atom({atom})." for atom in base_atoms) +
         '\n'.join(f"explain({atom})." for atom in atoms_to_explain)
     )
 
@@ -68,17 +79,20 @@ def compute_explanation(to_be_explained_serialization: Model,
              equals=True, help_msg="The assumption set must be provided in order to exclude some explanations")
     if assumption_set is None:
         assumption_set = compute_minimal_assumption_set(to_be_explained_serialization)
-    encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + assumption_set.as_facts + \
-               process_aggregates(to_be_explained_serialization).as_facts
+    instance: Final = assumption_set.as_facts + process_aggregates(to_be_explained_serialization).as_facts
+    encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + instance
     if different_from:
-        encoding += '\n'.join(model.substitute("explained_by", 1, clingo.Function("_")).block_up
-                              for model in different_from)
+        encoding += '\n'.join(model.project("explained_by", 1).block_up for model in different_from)
     res = compute_stable_model(encoding, context=ComputeExplanationContext())
 
     if res is None:
         validate("must have model", different_from is not None, equals=True,
                  help_msg="No stable model. The input is likely wrong.")
         return None
+
+    encoding = INDEXED_EXPLAIN_ENCODING + instance + res.as_facts
+    res = compute_stable_model(encoding, context=ComputeExplanationContext())
+    assert res is not None
 
     def fun(atom):
         fun.index += 1
@@ -269,7 +283,7 @@ The answer set is encoded by facts of the form
     collecting_neg_bodies :- not collecting_rules, neg_body(Rule,Atom), @collect_neg_body(Rule,Atom) != 1.
     collected_program :- not collecting_rules, not collecting_heads, not collecting_pos_bodies, not collecting_neg_bodies.
 
-    explained_by(@index(), Atom, initial_well_founded) :- collected_program; false(Atom), @false_in_well_founded_model(Atom) == 1.
+    explained_by(Atom, initial_well_founded) :- collected_program; false(Atom), @false_in_well_founded_model(Atom) == 1.
 
 % preliminaries : explain false atoms by well-founded model : end
 
@@ -277,16 +291,16 @@ The answer set is encoded by facts of the form
 % all atoms need to be explained by exactly one reason
 atom(Atom) :- true(Atom).
 atom(Atom) :- false(Atom).
-:- atom(Atom), #count{Index,Reason: explained_by(Index,Atom,Reason)} != 1.
-has_explanation(Atom) :- explained_by(_,Atom,_).
+:-atom(Atom), #count{Reason: explained_by(Atom,Reason)} != 1.
+has_explanation(Atom) :- explained_by(Atom,_).
 
 
 % assumed false atoms are explained (by assumption)
-explained_by(@index(), Atom, assumption) :- assume_false(Atom).
+explained_by(Atom, assumption) :- assume_false(Atom).
 
 
 % true atoms can be explained by a supporting rule whose body literals already have an explanation
-{explained_by(@index(), Atom, (support, Rule))} :- 
+{explained_by(Atom, (support, Rule))} :- 
   true(Atom);
   head(Rule,Atom);
   true(BAtom) : pos_body(Rule,BAtom);
@@ -298,7 +312,7 @@ explained_by(@index(), Atom, assumption) :- assume_false(Atom).
 % explain false atoms : begin
 
     % false atoms can be explained if all the possibly supporting rules already have an explanation
-    {explained_by(@index(), Atom, lack_of_support)} :-
+    {explained_by(Atom, lack_of_support)} :-
       false(Atom);
       false_body(Rule) : head(Rule,Atom).
 
@@ -312,7 +326,7 @@ explained_by(@index(), Atom, assumption) :- assume_false(Atom).
 
 
     % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
-    {explained_by(@index(), Atom, (required_to_falsify_body, Rule))} :-
+    {explained_by(Atom, (required_to_falsify_body, Rule))} :-
       false(Atom), not aggregate(Atom);
       pos_body(Rule,Atom), false_head(Rule);
       true(BAtom) : pos_body(Rule,BAtom), BAtom != Atom;
@@ -330,7 +344,7 @@ explained_by(@index(), Atom, assumption) :- assume_false(Atom).
       not LowerBound <= #count{HAtom : head(Rule,HAtom), true(HAtom)} <= UpperBound.
     
     % a false atom can be explained by a choice rule with true body and whose true head atoms already reach the upper bound
-    {explained_by(@index(), Atom, (choice_rule, Rule))} :-
+    {explained_by(Atom, (choice_rule, Rule))} :-
       false(Atom);
       head(Rule,Atom), choice(Rule, LowerBound, UpperBound), UpperBound != unbounded;
       true(BAtom) : pos_body(Rule,BAtom);
@@ -351,6 +365,108 @@ neg_body(0,0) :- #false.
 aggregate(0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
+"""
+
+INDEXED_EXPLAIN_ENCODING: Final = """
+%******************************************************************************
+__INPUT FORMAT__
+
+Each rule of the program is encoded by facts of the form
+- rule(RULE_ID)
+- head(RULE_ID, ATOM)
+- pos_body(RULE_ID, ATOM|AGGREGATE)
+- neg_body(RULE_ID, ATOM)
+- choice(RULE_ID, LOWER_BOUND, UPPER_BOUND)
+
+Aggregates are identified by facts of the form
+- aggregate(AGGREGATE)
+
+The answer set is encoded by facts of the form
+- true(ATOM|AGGREGATE)
+- false(ATOM|AGGREGATE)
+
+******************************************************************************%
+
+has_explanation(Atom) :- explained_by(_,Atom,_).
+
+explained_by(@index(), Atom, assumption) :- assume_false(Atom).
+explained_by(@index(), Atom, initial_well_founded) :- false(Atom), explained_by(Atom, initial_well_founded).
+
+% true atoms can be explained by a supporting rule whose body literals already have an explanation
+explained_by(@index(), Atom, (support, Rule)) :-
+  explained_by(Atom, (support, Rule));
+  true(Atom);
+  head(Rule,Atom);
+  true(BAtom) : pos_body(Rule,BAtom);
+  has_explanation(BAtom) : pos_body(Rule,BAtom);
+  false(BAtom) : neg_body(Rule,BAtom);
+  has_explanation(BAtom) : neg_body(Rule,BAtom).
+
+
+% explain false atoms : begin
+
+    % false atoms can be explained if all the possibly supporting rules already have an explanation
+    explained_by(@index(), Atom, lack_of_support) :-
+      explained_by(Atom, lack_of_support);
+      false(Atom);
+      false_body(Rule) : head(Rule,Atom).
+
+    % a non-supporting rule is explained if there is some false body literal that already has an explanation
+    false_body(Rule) :-
+      rule(Rule);
+      pos_body(Rule,BAtom), false(BAtom), has_explanation(BAtom).
+    false_body(Rule) :-
+      rule(Rule);
+      neg_body(Rule,BAtom), true(BAtom), has_explanation(BAtom).
+
+
+    % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
+    explained_by(@index(), Atom, (required_to_falsify_body, Rule)) :-
+      explained_by(Atom, (required_to_falsify_body, Rule));
+      false(Atom), not aggregate(Atom);
+      pos_body(Rule,Atom), false_head(Rule);
+      true(BAtom) : pos_body(Rule,BAtom), BAtom != Atom;
+      has_explanation(BAtom) : pos_body(Rule,BAtom), BAtom != Atom;
+      false(BAtom) : neg_body(Rule,BAtom);
+      has_explanation(BAtom) : neg_body(Rule,BAtom).
+    explained_head(Rule) :-
+      rule(Rule);
+      has_explanation(HAtom) : head(Rule,HAtom).
+    false_head(Rule) :- 
+      explained_head(Rule), not choice(Rule,_,_);
+      false(HAtom) : head(Rule,HAtom).
+    false_head(Rule) :-
+      explained_head(Rule), choice(Rule, LowerBound, UpperBound); 
+      not LowerBound <= #count{HAtom : head(Rule,HAtom), true(HAtom)} <= UpperBound.
+    
+    % a false atom can be explained by a choice rule with true body and whose true head atoms already reach the upper bound
+    explained_by(@index(), Atom, (choice_rule, Rule)) :-
+      explained_by(Atom, (choice_rule, Rule));
+      false(Atom);
+      head(Rule,Atom), choice(Rule, LowerBound, UpperBound), UpperBound != unbounded;
+      true(BAtom) : pos_body(Rule,BAtom);
+      has_explanation(BAtom) : pos_body(Rule,BAtom);
+      false(BAtom) : neg_body(Rule,BAtom);
+      has_explanation(BAtom) : neg_body(Rule,BAtom);
+      #count{HAtom : head(Rule, HAtom), true(HAtom), has_explanation(HAtom)} = UpperBound.
+
+% explain false atoms : end
+
+
+#show.
+#show explained_by/3.
+
+% avoid warnings
+rule(0) :- #false.
+choice(0,0,0) :- #false.
+head(0,0) :- #false.
+pos_body(0,0) :- #false.
+neg_body(0,0) :- #false.
+aggregate(0) :- #false.
+true(0) :- #false.
+false(0) :- #false.
+explained_by(0,0) :- #false.
+assume_false(0) :- #false.
 """
 
 MINIMAL_ASSUMPTION_SET_ENCODING: Final = """
@@ -398,7 +514,7 @@ For each atom in the minimal assumption set, the input must contain an atom of t
 
 
 #show.
-#show explained_by/3.
+#show explained_by/2.
 
 % avoid warnings
 assume_false(0) :- #false.
@@ -518,6 +634,11 @@ explained_by(0,0,0) :- #false.
 
 SERIALIZATION_ENCODING: Final = """
 atom(Atom) :- true(Atom).
+atom(Atom) :- head(Rule, Atom).
+atom(Atom) :- pos_body(Rule, Atom), not aggregate(Atom,_,_,_).
+atom(Atom) :- neg_body(Rule, Atom).
+atom(Atom) :- agg_set(Aggregate, Atom, Weight, Terms).
+
 false(Atom) :- atom(Atom), not true(Atom).
 
 #show.

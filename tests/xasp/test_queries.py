@@ -327,6 +327,7 @@ def test_compute_explanation(example1, example2, example3):
         """)
     ]
     model = compute_explanation(example3)
+    print(model.as_facts)
     assert model in [
         compute_stable_model("""
             explained_by(1,c,assumption).
@@ -354,6 +355,13 @@ def test_compute_explanation(example1, example2, example3):
             explained_by(2,d,assumption).
             explained_by(3,body,(support,r1)).
             explained_by(4,b,(required_to_falsify_body,r3)).
+            explained_by(5,a,(support,r2)).
+        """),
+        compute_stable_model("""
+            explained_by(1,c,assumption).
+            explained_by(2,d,assumption).
+            explained_by(3,b,(required_to_falsify_body,r3)).
+            explained_by(4,body,(support,r1)).
             explained_by(5,a,(support,r2)).
         """),
     ]
@@ -393,6 +401,7 @@ def test_compute_explanation_dag(example1, example2, example3):
         """),
     ]
     model = compute_explanation_dag(example3)
+    print(model)
     assert model in [
         compute_stable_model("""        
             link(1,c,assumption,"false").
@@ -420,6 +429,13 @@ def test_compute_explanation_dag(example1, example2, example3):
             link(2,d,assumption,"false").
             link(3,body,(support,r1),"true").
             link(4,b,(required_to_falsify_body,r3),d).
+            link(5,a,(support,r2),body).
+        """),
+        compute_stable_model("""
+            link(1,c,assumption,"false").
+            link(2,d,assumption,"false").
+            link(3,b,(required_to_falsify_body,r3),d).
+            link(4,body,(support,r1),"true").
             link(5,a,(support,r2),body).
         """),
     ]
@@ -457,6 +473,14 @@ def test_deal_with_symbolic_program(example4):
         compute_stable_model("""
             explained_by(1,c(1),initial_well_founded).
             explained_by(2,b(2),assumption).
+            explained_by(3,a(1),(support,r1)).
+            explained_by(4,a(2),(support,r1)).
+            explained_by(5,c(2),(support,r3(2))).
+            explained_by(6,b(1),(support,r2(1))).
+        """),
+        compute_stable_model("""
+            explained_by(1,b(2),assumption).
+            explained_by(2,c(1),initial_well_founded).
             explained_by(3,a(1),(support,r1)).
             explained_by(4,a(2),(support,r1)).
             explained_by(5,c(2),(support,r3(2))).
@@ -501,6 +525,15 @@ def test_deal_with_symbolic_program(example4):
             link(5,c(2),(support,r3(2)),b(2)).
             link(6,b(1),(support,r2(1)),a(1)).
         """),
+        compute_stable_model("""
+            link(1,b(2),assumption,"false").
+            link(2,c(1),initial_well_founded,"false").
+            link(3,a(1),(support,r1),"true").
+            link(4,a(2),(support,r1),"true").
+            link(5,c(2),(support,r3(2)),a(2)).
+            link(5,c(2),(support,r3(2)),b(2)).
+            link(6,b(1),(support,r2(1)),a(1)).
+        """),
     ]
 
 
@@ -523,8 +556,16 @@ def test_deal_with_symbolic_program_and_aggregates(example5):
             explained_by(4,b(1,0),(support,r2(1))).
             explained_by(5,a(1),(support,r1)).
         """),
+        compute_stable_model("""
+            explained_by(1,b(1,1),assumption).
+            explained_by(2,a(1),(support,r1)).
+            explained_by(3,c,lack_of_support).
+            explained_by(4,b(1,0),(support,r2(1))).
+            explained_by(5,agg1(1),lack_of_support).
+        """),
     ]
     model = compute_explanation_dag(example5)
+
     assert model in [
         compute_stable_model("""
             link(1,b(1,1),assumption,"false").
@@ -878,7 +919,50 @@ def test_rule_with_compressed_head():
 
 def test_strong_negation():
     serialization = compute_serialization("""
-        -a.
-    """, answer_set=Model.of_atoms("-a"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("-a"))
+        {a; -a}.
+    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("atom(a)", "atom(-a)"),
+                                          atoms_to_explain=Model.of_atoms("a"),
+                                          base_in_predicate_atom=True)
     explanation = compute_explanation(serialization)
-    assert "explained_by(1,-a,(support,r1))." in explanation.as_facts
+    assert "explained_by(2,-a,(required_to_falsify_body,r2))." in explanation.as_facts
+
+
+def test_atoms_in_negative_literals_are_added_to_the_base_during_serialization():
+    serialization = compute_serialization("a :- not b.", answer_set=Model.of_atoms("a"), base=Model.empty(),
+                                          atoms_to_explain=Model.of_atoms("a"))
+    assert "false(b)." in serialization.as_facts
+    minimal_assumption_set = compute_minimal_assumption_set(serialization)
+    assert len(minimal_assumption_set) == 0
+
+
+# def test_xai_example():
+#     # with open(utils.PROJECT_ROOT / f"examples/xai.lp") as f:
+#     #     program = '\n'.join(f.readlines())
+#     with open(utils.PROJECT_ROOT / f"examples/xai.answer_set.lp") as f:
+#         # $ clingo xai.lp --outf=1 | grep -v "^ANSWER$" | grep -v "^%" > xai_small.answer_set.lp
+#         answer_set = Model.of_program('\n'.join(f.readlines()))
+#     # with open(utils.PROJECT_ROOT / f"examples/xai.base.lp") as f:
+#     #     # $ clingo --text xai.lp | grep -v "^:-" | sed "s/:-.*/./" | sort -u | sed "s/.$//" > xai.base.lp
+#     #     base = Model.of_atoms(f"atom({atom.strip()})" for atom in f.readlines())
+#     #
+#     # serialization = compute_serialization(
+#     #     program,
+#     #     answer_set=answer_set,
+#     #     base=base,
+#     #     atoms_to_explain=Model.of_atoms("behaves_inertially(testing_posTestNeg,121)"),
+#     #     base_in_predicate_atom=True,
+#     # )
+#     # minimal_assumption_set = compute_minimal_assumption_set(serialization)
+#     # assert len(minimal_assumption_set) == 1
+#     # print(minimal_assumption_set)
+#     # explanation = compute_explanation(serialization, assumption_set=minimal_assumption_set)
+#     # print(len(explanation))
+#     # dag = compute_explanation_dag(serialization, explanation=explanation)
+#     # with open("/tmp/a.txt", "w") as f:
+#     #     f.writelines(explanation.as_facts)
+#     #     f.writelines(dag.as_facts)
+#     with open(utils.PROJECT_ROOT / "examples/xai.dag.lp") as f:
+#         dag = Model.of_program('\n'.join(f.readlines()))
+#     commands.save_explanation_dag(dag, answer_set, Model.of_atoms("behaves_inertially(testing_posTestNeg,121)"), "/tmp/a.png",
+#                                   bbox=(8000, 4000))
+#     assert False

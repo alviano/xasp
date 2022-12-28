@@ -46,6 +46,10 @@ class ProgramSerializerTransformer(Transformer):
         self.__agg_index = 0
         self.__state = None
         self.__variables = set()
+        self.__definitions = []
+
+    def visit_Definition(self, node):
+        self.add_to_result(str(node))
 
     def visit_Rule(self, node):
         self.__rule_index += 1

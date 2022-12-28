@@ -90,6 +90,18 @@ class Model:
             )
         return self.map(mapping)
 
+    def project(self, predicate: str, argument: int) -> "Model":
+        validate("argument", argument, min_value=1, help_msg="Argument are indexed from 1")
+
+        def mapping(atom):
+            if atom.name != predicate:
+                return atom
+            return clingo.Function(
+                atom.name,
+                [arg for index, arg in enumerate(atom.arguments, start=1) if index != argument]
+            )
+        return self.map(mapping)
+
     @property
     def block_up(self) -> str:
         return ":- " + ", ".join([f"{atom}" for atom in self]) + '.'
