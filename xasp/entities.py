@@ -1,6 +1,6 @@
+import base64
 import dataclasses
 import json
-import urllib.parse
 import webbrowser
 from dataclasses import InitVar
 from enum import auto, IntEnum
@@ -192,7 +192,9 @@ class Explanation:
 
     def show_navigator_graph(self) -> "Explanation":
         validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
-        url = "https://xasp-navigator.netlify.app/?graph=" + urllib.parse.quote(json.dumps(self.navigator_graph, separators=(',', ':')))
+        url = "https://xasp-navigator.netlify.app/#"
+        # url = "http://localhost:5173/#"
+        url += base64.b64encode(json.dumps(self.navigator_graph, separators=(',', ':')).encode()).decode()
         webbrowser.open(url, new=0, autoraise=True)
         return self
 
