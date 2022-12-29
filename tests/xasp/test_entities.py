@@ -15,7 +15,7 @@ def test_xai_navigator():
         the_answer_set=Model.of_atoms("a"),
         the_atoms_to_explain=Model.of_atoms("a"),
     ).compute_igraph().navigator_graph
-    assert json.loads(graph) == {
+    assert graph == {
         "nodes": [
             {
                 "id": 0,

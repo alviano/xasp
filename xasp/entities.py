@@ -1,5 +1,7 @@
 import dataclasses
 import json
+import urllib.parse
+import webbrowser
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
@@ -188,6 +190,12 @@ class Explanation:
         )
         return self
 
+    def show_navigator_graph(self) -> "Explanation":
+        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+        url = "https://xasp-navigator.netlify.app/?graph=" + urllib.parse.quote(json.dumps(self.navigator_graph, separators=(',', ':')))
+        webbrowser.open(url, new=0, autoraise=True)
+        return self
+
     @property
     def asp_program(self) -> Optional[str]:
         return self.__asp_program
@@ -230,7 +238,7 @@ class Explanation:
         return tuple(self.__explanation_dags)
 
     @property
-    def navigator_graph(self) -> str:
+    def navigator_graph(self) -> Dict:
         validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
         res = {
             "nodes": [
@@ -250,7 +258,7 @@ class Explanation:
                 for link in self.__igraph.es
             ],
         }
-        return json.dumps(res, indent=2)
+        return res
 
     def __compute_stable_model(self, asp_program, context=None) -> Optional[Model]:
         return self.__commands_implementation["compute_stable_model"](asp_program, context)
