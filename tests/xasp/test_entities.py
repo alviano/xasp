@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 
@@ -5,6 +6,36 @@ from xasp import utils, commands
 from xasp.primitives import Model
 from xasp.queries import create_explanation
 
+
+def test_xai_navigator():
+    graph = create_explanation().given_the_program(
+        """
+            a.
+        """,
+        the_answer_set=Model.of_atoms("a"),
+        the_atoms_to_explain=Model.of_atoms("a"),
+    ).compute_igraph().navigator_graph
+    assert json.loads(graph) == {
+        "nodes": [
+            {
+                "id": 0,
+                "label": "#true",
+                "color": "green",
+            },
+            {
+                "id": 1,
+                "label": "a",
+                "color": "green",
+            },
+        ],
+        "links": [
+            {
+                "source": 1,
+                "target": 0,
+                "label": "(support,r1)",
+            }
+        ]
+    }
 
 # def test_xai_example():
 #     start = time.time()

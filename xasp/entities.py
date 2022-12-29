@@ -1,4 +1,5 @@
 import dataclasses
+import json
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import Callable, Final, Optional, Tuple, Dict, List
 
 import clingo
 import igraph
+import typeguard
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
 from xasp.primitives import Model
@@ -13,6 +15,7 @@ from xasp.transformers import ProgramSerializerTransformer
 from xasp.utils import validate
 
 
+@typeguard.typechecked
 @dataclasses.dataclass
 class Explanation:
     compute_stable_model: InitVar[Callable]
@@ -57,7 +60,7 @@ class Explanation:
         self.__answer_set = the_answer_set
         self.__atoms_to_explain = the_atoms_to_explain
         self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
-        return self.compute_serialization()
+        return self.__compute_serialization()
 
     def given_the_serialization(self,
                                 value: Model,
@@ -88,15 +91,9 @@ class Explanation:
         self.__state = Explanation.State.EXPLANATION_DAG_COMPUTED
         return self
 
-    def compute_serialization(self) -> "Explanation":
-        validate("state", self.__state, equals=Explanation.State.INITIAL)
-        self.__serialization = self.__compute_serialization()
-        self.__state = Explanation.State.SERIALIZED
-        return self
-
     def process_aggregates(self) -> "Explanation":
         if self.__state < Explanation.State.SERIALIZED:
-            self.compute_serialization()
+            self.__compute_serialization()
         validate("state", self.__state, equals=Explanation.State.SERIALIZED)
         self.__serialization = self.__process_aggregates()
         self.__state = Explanation.State.AGGREGATE_PROCESSED
@@ -178,22 +175,11 @@ class Explanation:
         self.__state = Explanation.State.IGRAPH_COMPUTED
         return self
 
-    def save_igraph(self, filename: Path, distance: Optional[int] = None, **kwargs) -> "Explanation":
+    def save_igraph(self, filename: Path, **kwargs) -> "Explanation":
         validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
-        validate("distance", distance is None or distance > 0, equals=True)
-        graph = self.__igraph
-        reachable_nodes = graph.neighborhood(
-            vertices=[str(atom) for atom in self.__atoms_to_explain],
-            order=len(graph.vs) if distance is None else distance,
-            mode="out"
-        )
-        nodes = []
-        for reachable_nodes_element in reachable_nodes:
-            nodes.extend(reachable_nodes_element)
-        graph = graph.induced_subgraph(nodes)
         igraph.plot(
-            graph,
-            layout=graph.layout_kamada_kawai(),
+            self.__igraph,
+            layout=self.__igraph.layout_kamada_kawai(),
             margin=140,
             target=filename,
             vertex_label_dist=2,
@@ -229,24 +215,49 @@ class Explanation:
         return self.__atoms_explained_by_initial_well_founded
 
     @property
-    def minimal_assumption_sets(self) -> Tuple[Model]:
+    def minimal_assumption_sets(self) -> tuple[Model, ...]:
         validate("state", self.__state, min_value=Explanation.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
         return tuple(self.__minimal_assumption_sets)
 
     @property
-    def explanation_sequences(self) -> Tuple[Model]:
+    def explanation_sequences(self) -> Tuple[Model, ...]:
         validate("state", self.__state, min_value=Explanation.State.EXPLANATION_SEQUENCE_COMPUTED)
         return tuple(self.__explanation_sequences)
 
     @property
-    def explanation_dags(self) -> Tuple[Model]:
+    def explanation_dags(self) -> Tuple[Model, ...]:
         validate("state", self.__state, min_value=Explanation.State.EXPLANATION_DAG_COMPUTED)
         return tuple(self.__explanation_dags)
+
+    @property
+    def navigator_graph(self) -> str:
+        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+        res = {
+            "nodes": [
+                {
+                    "id": index,
+                    "label": node.attributes()["label"],
+                    "color": node.attributes()["color"],
+                }
+                for index, node in enumerate(self.__igraph.vs)
+            ],
+            "links": [
+                {
+                    "source": link.tuple[0],
+                    "target": link.tuple[1],
+                    "label": link.attributes()["label"],
+                }
+                for link in self.__igraph.es
+            ],
+        }
+        return json.dumps(res, indent=2)
 
     def __compute_stable_model(self, asp_program, context=None) -> Optional[Model]:
         return self.__commands_implementation["compute_stable_model"](asp_program, context)
 
-    def __compute_serialization(self) -> Model:
+    def __compute_serialization(self) -> "Explanation":
+        validate("state", self.__state, equals=Explanation.State.INITIAL)
+
         strongly_negated_atoms = {str(atom)[1:] for atom in self.answer_set if str(atom).startswith('-')}
         strongly_negated_atoms.update(str(atom)[1:] for atom in self.additional_atoms_in_the_base
                                       if str(atom).startswith('-'))
@@ -255,12 +266,14 @@ class Explanation:
         transformer = ProgramSerializerTransformer()
         transformed_program = transformer.apply(self.asp_program + '\n'.join(f":- {atom}, -{atom}."
                                                                              for atom in strongly_negated_atoms))
-        return self.__compute_stable_model(
+        self.__serialization = self.__compute_stable_model(
             SERIALIZATION_ENCODING + transformed_program +
             '\n'.join(f"true({atom})." for atom in self.answer_set) +
             '\n'.join(f"atom({atom})." for atom in self.additional_atoms_in_the_base) +
             '\n'.join(f"explain({atom})." for atom in self.atoms_to_explain)
         )
+        self.__state = Explanation.State.SERIALIZED
+        return self
 
     def __process_aggregates(self) -> Model:
         res = self.__compute_stable_model(
@@ -332,7 +345,15 @@ class Explanation:
                 color = TRUE_COLOR if source in answer_set_as_strings else FALSE_COLOR
                 graph.add_vertex(source, color=color, label=source)
             graph.add_edge(source, sink, label=label)
-        return graph
+        reachable_nodes = graph.neighborhood(
+            vertices=[str(atom) for atom in self.__atoms_to_explain],
+            order=len(graph.vs),
+            mode="out"
+        )
+        nodes = []
+        for reachable_nodes_element in reachable_nodes:
+            nodes.extend(reachable_nodes_element)
+        return graph.induced_subgraph(nodes)
 
 
 TRUE_COLOR: Final = "green"
@@ -859,4 +880,5 @@ rule(0) :- #false.
 head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
+false(0) :- #false.
 """
