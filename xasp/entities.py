@@ -2,6 +2,7 @@ import base64
 import dataclasses
 import json
 import webbrowser
+import zlib
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
@@ -194,7 +195,8 @@ class Explanation:
         validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
         url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
-        url += base64.b64encode(json.dumps(self.navigator_graph, separators=(',', ':')).encode()).decode()
+        json_dump = json.dumps(self.navigator_graph, separators=(',', ':')).encode()
+        url += base64.b64encode(zlib.compress(json_dump)).decode()
         webbrowser.open(url, new=0, autoraise=True)
         return self
 
@@ -347,14 +349,25 @@ class Explanation:
         graph = igraph.Graph(directed=True)
         graph.add_vertex('"true"', color=TRUE_COLOR, label="#true")
         graph.add_vertex('"false"', color=FALSE_COLOR, label="#false")
-        for link in dag:
+
+        rules = {}
+        for rule in dag.drop("link"):
+            validate("predicate", rule.name, equals="original_rule")
+            rule_index = str(rule.arguments[0])
+            b64 = rule.arguments[1].string
+            variables = rule.arguments[2].string
+            rules[rule_index] = (base64.b64decode(b64).decode(), variables)
+
+        for link in dag.drop("original_rule"):
             validate("link name", link.name, equals="link")
-            _, source, label, sink = (str(x) for x in link.arguments)
+            source = str(link.arguments[1])
+            label = link.arguments[2]
+            sink = str(link.arguments[3])
             validate("sink is present", graph.vs.select(name=sink), length=1)
             if len(graph.vs.select(name=source)) == 0:
                 color = TRUE_COLOR if source in answer_set_as_strings else FALSE_COLOR
                 graph.add_vertex(source, color=color, label=source)
-            graph.add_edge(source, sink, label=label)
+            graph.add_edge(source, sink, label=self.__link_label(rules, label))
         reachable_nodes = graph.neighborhood(
             vertices=[str(atom) for atom in self.__atoms_to_explain],
             order=len(graph.vs),
@@ -364,6 +377,17 @@ class Explanation:
         for reachable_nodes_element in reachable_nodes:
             nodes.extend(reachable_nodes_element)
         return graph.induced_subgraph(nodes)
+
+    @staticmethod
+    def __link_label(rules, label: clingo.Symbol) -> str:
+        if label.name in ["assumption", "initial_well_founded"]:
+            return str(label)
+        validate("name", label.name, equals="")
+        validate("arguments", label.arguments, length=2)
+        rule, variables = rules[label.arguments[1].name]
+        return f"{label.arguments[0].name.replace('_', ' ')}\n{rule}" + \
+            (f"\n{variables} => {','.join(str(x) for x in label.arguments[1].arguments)}"
+             if label.arguments[1].arguments else "")
 
 
 TRUE_COLOR: Final = "green"
@@ -384,6 +408,7 @@ __INPUT FORMAT__
 
 Each rule of the program is encoded by facts of the form
 - rule(RULE_ID)
+- original_rule(RULE_INDEX, BASE64, VARIABLES)
 - choice(RULE_ID, LOWER_BOUND, UPPER_BOUND)
 - head(RULE_ID, ATOM)
 - pos_body(RULE_ID, ATOM|AGGREGATE)
@@ -434,6 +459,7 @@ neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms
 
 #show.
 #show rule/1.
+#show original_rule/3.
 #show choice/3.
 #show head/2.
 #show pos_body/2.
@@ -448,6 +474,7 @@ neg_body((Agg,Atom),Atom) :- false_aggregate(Agg), agg_set(Agg,Atom,Weight,Terms
 
 % avoid warnings
 rule(0) :- #false.
+original_rule(0,0,0) :- #false.
 choice(0,0,0) :- #false.
 head(0,0) :- #false.
 pos_body(0,0) :- #false.
@@ -723,6 +750,7 @@ __INPUT FORMAT__
 
 Each rule of the program is encoded by facts of the form
 - rule(RULE_ID)
+- original_rule(RULE_INDEX, BASE64, VARIABLES)
 - head(RULE_ID, ATOM)
 - pos_body(RULE_ID, ATOM|AGGREGATE)
 - neg_body(RULE_ID, ATOM)
@@ -814,9 +842,11 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
 
 #show.
 #show link/4.
+#show original_rule/3.
 
 % avoid warnings
 rule(0) :- #false.
+original_rule(0,0,0) :- #false.
 choice(0,0,0) :- #false.
 head(0,0) :- #false.
 pos_body(0,0) :- #false.
@@ -839,6 +869,7 @@ false(Atom) :- atom(Atom), not true(Atom).
 
 #show.
 #show rule/1.
+#show original_rule/3.
 #show choice/3.
 #show head/2.
 #show pos_body/2.
@@ -851,6 +882,7 @@ false(Atom) :- atom(Atom), not true(Atom).
 
 % avoid warnings
 rule(0) :- #false.
+original_rule(0,0,0) :- #false.
 head(0,0) :- #false.
 choice(0,0,0) :- #false.
 pos_body(0,0) :- #false.

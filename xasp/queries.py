@@ -25,13 +25,13 @@ def compute_serialization(asp_program: str, answer_set: Model, base: Model,
         the_answer_set=answer_set,
         the_atoms_to_explain=atoms_to_explain,
         the_additional_atoms_in_the_base=base,
-    ).serialization
+    ).serialization.drop("original_rule")
 
 
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
     return create_explanation().given_the_serialization(
         to_be_explained_serialization
-    ).process_aggregates().serialization
+    ).process_aggregates().serialization.drop("original_rule")
 
 
 def compute_atoms_explained_by_initial_well_founded(serialization: Model) -> Model:

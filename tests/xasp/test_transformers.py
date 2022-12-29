@@ -1,4 +1,6 @@
+import base64
 import logging
+from typing import Optional
 
 import pytest
 
@@ -12,8 +14,19 @@ def program_serializer_transformer():
     return ProgramSerializerTransformer()
 
 
-def equals(a, b):
-    return sorted(a.split('\n')) == sorted([line.strip() for line in b.strip().split('\n')])
+def equals(a, b, drop_prefix: Optional[str] = "original_rule"):
+    return sorted([line.strip() for line in a.strip().split('\n')
+                   if drop_prefix is None or not line.startswith(drop_prefix)]) == \
+        sorted([line.strip() for line in b.strip().split('\n')
+                if drop_prefix is None or not line.startswith(drop_prefix)])
+
+
+def test_transform_original_rule(program_serializer_transformer):
+    assert equals(program_serializer_transformer.apply("a ."), f"""
+        rule(r1) :- .
+            head(r1,a) :- rule(r1).
+            original_rule(r1,"{base64.b64encode(b'a .').decode()}","").
+    """, drop_prefix=None)
 
 
 def test_transform_fact_propositional(program_serializer_transformer):

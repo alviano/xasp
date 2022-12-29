@@ -45,7 +45,6 @@ def test_compute_program_serialization_for_aggregates_with_two_bounds():
     model = compute_serialization("""
         :- 0 <= #sum{X : p(X)} <= 1.
     """, answer_set=Model.of_atoms("p(-1)", "p(1)"), base=Model.of_atoms("p(-1)", "p(1)", "p(2)"))
-    print(model.as_facts)
     assert model == compute_stable_model("""
         rule(r1).
           pos_body(r1,agg1).
@@ -401,7 +400,6 @@ def test_compute_explanation_dag(example1, example2, example3):
         """),
     ]
     model = compute_explanation_dag(example3)
-    print(model)
     assert model in [
         compute_stable_model("""        
             link(1,c,assumption,"false").

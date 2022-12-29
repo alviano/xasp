@@ -1,9 +1,10 @@
+import base64
 from enum import Enum, auto
 
 import clingo
 import clingo.ast
 import typeguard
-from clingo.ast import ASTType, ComparisonOperator, AggregateFunction, Sign
+from clingo.ast import ASTType, ComparisonOperator, AggregateFunction, Sign, Location
 
 from xasp.utils import validate
 
@@ -15,9 +16,11 @@ class Transformer(clingo.ast.Transformer):
         self.__called = False
         self.__result = []
         self.__exceptions = []
+        self.__input = None
 
     def apply(self, string: str) -> str:
         validate("called once", self.__called, equals=False)
+        self.__input = string.split('\n')
         clingo.ast.parse_string(string, lambda obj: self.__transform(obj))
         if self.__exceptions:
             raise self.__exceptions[0]
@@ -31,6 +34,19 @@ class Transformer(clingo.ast.Transformer):
 
     def add_to_result(self, string: str) -> None:
         self.__result.append(string)
+
+    def input(self, location: Location) -> str:
+        res = []
+        if location.begin.line == location.end.line:
+            res.append(self.__input[location.begin.line - 1][location.begin.column - 1:location.end.column])
+        else:
+            res.append(self.__input[location.begin.line - 1][location.begin.column - 1:])
+            res.extend(self.__input[location.begin.line:location.end.line - 1])
+            res.append(self.__input[location.end.line - 1][:location.end.column])
+        return '\n'.join(line.rstrip() for line in res if line.strip())
+
+    def encode_input(self, location: Location) -> str:
+        return base64.b64encode(self.input(location).encode()).decode()
 
 
 @typeguard.typechecked
@@ -62,6 +78,8 @@ class ProgramSerializerTransformer(Transformer):
         rule_atom = f"rule({rule_id})"
         rule_body = self.__compute_rule_body(body)
         self.add_to_result(f"{rule_atom} :- {rule_body}.")
+
+        self.add_to_result(f'original_rule(r{self.__rule_index},"{self.encode_input(node.location)}","{variables}").')
 
         if str(head) != "#false":
             validate("head type", head.ast_type, is_in=(ASTType.Aggregate, ASTType.Literal))

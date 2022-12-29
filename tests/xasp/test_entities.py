@@ -1,3 +1,4 @@
+import base64
 import json
 import time
 from pathlib import Path
@@ -7,35 +8,50 @@ from xasp.primitives import Model
 from xasp.queries import create_explanation
 
 
-def test_xai_navigator():
+def test_xai_navigator_support():
     graph = create_explanation().given_the_program(
-        """
-            a.
-        """,
+        "a.",
         the_answer_set=Model.of_atoms("a"),
         the_atoms_to_explain=Model.of_atoms("a"),
     ).compute_igraph().navigator_graph
-    assert graph == {
-        "nodes": [
-            {
-                "id": 0,
-                "label": "#true",
-                "color": "green",
-            },
-            {
-                "id": 1,
-                "label": "a",
-                "color": "green",
-            },
-        ],
-        "links": [
-            {
-                "source": 1,
-                "target": 0,
-                "label": "(support,r1)",
-            }
-        ]
-    }
+    assert "support\\na." in json.dumps(graph)
+
+
+def test_xai_navigator_lack_of_support():
+    graph = create_explanation().given_the_program(
+        """
+            {b}.
+            a :- b.
+        """,
+        the_answer_set=Model.empty(),
+        the_atoms_to_explain=Model.of_atoms("a"),
+        the_additional_atoms_in_the_base=Model.of_atoms("b")
+    ).compute_igraph().navigator_graph
+    assert 'lack of support\\na :- b.' in json.dumps(graph)
+
+
+def test_xai_navigator_choice_rule():
+    graph = create_explanation().given_the_program(
+        """
+            {b} <= 0.
+        """,
+        the_answer_set=Model.empty(),
+        the_atoms_to_explain=Model.of_atoms("b"),
+    ).compute_igraph().navigator_graph
+    assert 'choice rule\\n{b} <= 0.' in json.dumps(graph)
+
+
+def test_xai_navigator_constraint():
+    graph = create_explanation().given_the_program(
+        """
+            {a}.
+            :- a.
+        """,
+        the_answer_set=Model.empty(),
+        the_atoms_to_explain=Model.of_atoms("a"),
+    ).compute_igraph().navigator_graph
+    assert 'required to falsify body\\n:- a.' in json.dumps(graph)
+
 
 # def test_xai_example():
 #     start = time.time()
