@@ -35,7 +35,7 @@ class Explain:
     __minimal_assumption_sets: List[Model] = dataclasses.field(default_factory=list, init=False)
     __explanation_sequences: List[Model] = dataclasses.field(default_factory=list, init=False)
     __explanation_dags: List[Model] = dataclasses.field(default_factory=list, init=False)
-    __igraph: Optional[igraph.Graph] = dataclasses.field(default=None, init=False)
+    __igraph: List[Optional[igraph.Graph]] = dataclasses.field(default_factory=list, init=False)
 
     class State(IntEnum):
         INITIAL = auto()
@@ -160,7 +160,7 @@ class Explain:
                     break
         self.__state = Explain.State.EXPLANATION_DAG_COMPUTED
 
-    def compute_igraph(self) -> None:
+    def compute_igraph(self, index: int = -1) -> None:
         validate("answer_set", self.__answer_set, help_msg="Answer set was not provided")
         validate("atoms_to_explain", self.__atoms_to_explain, help_msg="Atoms to explain were not provided")
         validate("additional_atoms_in_the_base", self.__additional_atoms_in_the_base,
@@ -168,16 +168,19 @@ class Explain:
         if self.__state < Explain.State.EXPLANATION_DAG_COMPUTED:
             self.compute_explanation_dag()
         validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
-        self.__igraph = self.__compute_igraph(dag=self.__explanation_dags[-1])
+        validate("index", index, min_value=-len(self.__explanation_dags), max_value=len(self.__explanation_dags) - 1)
+        self.__igraph.extend(None for _ in range(index + 1 if index >= 0 else -index))
+        if self.__igraph[index] is None:
+            self.__igraph[index] = self.__compute_igraph(dag=self.__explanation_dags[index])
         self.__state = Explain.State.IGRAPH_COMPUTED
 
-    def save_igraph(self, filename: Path, **kwargs) -> None:
+    def save_igraph(self, filename: Path, index: int = -1, **kwargs) -> None:
         if self.__state < Explain.State.IGRAPH_COMPUTED:
             self.compute_igraph()
         validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
         igraph.plot(
             self.__igraph,
-            layout=self.__igraph.layout_kamada_kawai(),
+            layout=self.__igraph[index].layout_kamada_kawai(),
             margin=140,
             target=filename,
             vertex_label_dist=2,
@@ -185,13 +188,13 @@ class Explain:
             **kwargs,
         )
 
-    def show_navigator_graph(self) -> None:
+    def show_navigator_graph(self, index: int = -1) -> None:
         if self.__state < Explain.State.IGRAPH_COMPUTED:
-            self.compute_igraph()
+            self.compute_igraph(index)
         validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
         url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
-        json_dump = json.dumps(self.navigator_graph, separators=(',', ':')).encode()
+        json_dump = json.dumps(self.navigator_graph(), separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode()
         webbrowser.open(url, new=0, autoraise=True)
 
@@ -244,11 +247,11 @@ class Explain:
         validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
         return tuple(self.__explanation_dags)
 
-    @property
-    def navigator_graph(self) -> Dict:
+    def navigator_graph(self, index: int = -1) -> Dict:
         if self.__state < Explain.State.IGRAPH_COMPUTED:
-            self.compute_igraph()
+            self.compute_igraph(index)
         validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
+        graph = self.__igraph[index]
         res = {
             "nodes": [
                 {
@@ -256,7 +259,7 @@ class Explain:
                     "label": node.attributes()["label"],
                     "color": node.attributes()["color"],
                 }
-                for index, node in enumerate(self.__igraph.vs)
+                for index, node in enumerate(graph.vs)
             ],
             "links": [
                 {
@@ -264,7 +267,7 @@ class Explain:
                     "target": link.tuple[1],
                     "label": link.attributes()["label"],
                 }
-                for link in self.__igraph.es
+                for link in graph.es
             ],
         }
         return res

@@ -9,7 +9,7 @@ def test_xai_navigator_support():
         "a.",
         the_answer_set=Model.of_atoms("a"),
         the_atoms_to_explain=Model.of_atoms("a"),
-    ).navigator_graph
+    ).navigator_graph()
     assert "support\\na." in json.dumps(graph)
 
 
@@ -22,7 +22,7 @@ def test_xai_navigator_lack_of_support():
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("a"),
         the_additional_atoms_in_the_base=Model.of_atoms("b")
-    ).navigator_graph
+    ).navigator_graph()
     assert 'lack of support\\na :- b.' in json.dumps(graph)
 
 
@@ -33,7 +33,7 @@ def test_xai_navigator_choice_rule():
         """,
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("b"),
-    ).navigator_graph
+    ).navigator_graph()
     assert 'choice rule\\n{b} <= 0.' in json.dumps(graph)
 
 
@@ -45,7 +45,7 @@ def test_xai_navigator_constraint():
         """,
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("a"),
-    ).navigator_graph
+    ).navigator_graph()
     assert 'required to falsify body\\n:- a.' in json.dumps(graph)
 
 
