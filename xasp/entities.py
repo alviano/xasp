@@ -6,7 +6,7 @@ import zlib
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
-from typing import Callable, Final, Optional, Tuple, Dict, List, Any, Union
+from typing import Callable, Final, Optional, Dict, List, Any, Union
 
 import clingo
 import igraph
@@ -15,7 +15,7 @@ import typeguard
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
 from xasp.primitives import Model, PositiveIntegerOrUnbounded
 from xasp.transformers import ProgramSerializerTransformer
-from xasp.utils import validate
+from xasp.utils import validate, call_with_difference_if_invalid_index
 
 
 @typeguard.typechecked
@@ -227,25 +227,28 @@ class Explain:
         return self.__atoms_explained_by_initial_well_founded
 
     @property
-    def minimal_assumption_sets(self) -> tuple[Model, ...]:
-        if self.__state < Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED:
-            self.compute_minimal_assumption_set()
-        validate("state", self.__state, min_value=Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
-        return tuple(self.__minimal_assumption_sets)
+    def minimal_assumption_sets(self) -> int:
+        return len(self.__minimal_assumption_sets)
+
+    def minimal_assumption_set(self, index: int = -1) -> Model:
+        call_with_difference_if_invalid_index(index, self.minimal_assumption_sets, self.compute_minimal_assumption_set)
+        return self.__minimal_assumption_sets[index]
 
     @property
-    def explanation_sequences(self) -> Tuple[Model, ...]:
-        if self.__state < Explain.State.EXPLANATION_SEQUENCE_COMPUTED:
-            self.compute_explanation_sequence()
-        validate("state", self.__state, min_value=Explain.State.EXPLANATION_SEQUENCE_COMPUTED)
-        return tuple(self.__explanation_sequences)
+    def explanation_sequences(self) -> int:
+        return len(self.__explanation_sequences)
+
+    def explanation_sequence(self, index: int = -1) -> Model:
+        call_with_difference_if_invalid_index(index, self.explanation_sequences, self.compute_explanation_sequence)
+        return self.__explanation_sequences[index]
 
     @property
-    def explanation_dags(self) -> Tuple[Model, ...]:
-        if self.__state < Explain.State.EXPLANATION_DAG_COMPUTED:
-            self.compute_explanation_dag()
-        validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
-        return tuple(self.__explanation_dags)
+    def explanation_dags(self) -> int:
+        return len(self.__explanation_dags)
+
+    def explanation_dag(self, index: int = -1) -> Model:
+        call_with_difference_if_invalid_index(index, self.explanation_dags, self.compute_explanation_dag)
+        return self.__explanation_dags[index]
 
     def navigator_graph(self, index: int = -1) -> Dict:
         if self.__state < Explain.State.IGRAPH_COMPUTED:
@@ -322,7 +325,7 @@ class Explain:
         return res
 
     def __compute_explanation_sequence(self) -> Optional[Model]:
-        instance: Final = self.minimal_assumption_sets[-1].as_facts + \
+        instance: Final = self.minimal_assumption_set(-1).as_facts + \
                           self.serialization.as_facts + \
                           self.atoms_explained_by_initial_well_founded.as_facts
         encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + instance + \

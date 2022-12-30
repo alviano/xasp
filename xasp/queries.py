@@ -49,7 +49,7 @@ def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to:
     explain.compute_minimal_assumption_set(
         repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
     )
-    return explain.minimal_assumption_sets
+    return tuple(explain.minimal_assumption_set(index) for index in range(explain.minimal_assumption_sets))
 
 
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
@@ -60,8 +60,10 @@ def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[i
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
-    explain.compute_explanation_sequence(repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded())
-    return explain.explanation_sequences
+    explain.compute_explanation_sequence(
+        repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
+    )
+    return tuple(explain.explanation_sequence(index) for index in range(explain.explanation_sequences))
 
 
 def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
@@ -72,5 +74,7 @@ def compute_explanation_dags(to_be_explained_serialization: Model, up_to: Option
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
-    explain.compute_explanation_dag(repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded())
-    return explain.explanation_dags
+    explain.compute_explanation_dag(
+        repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
+    )
+    return tuple(explain.explanation_dag(index) for index in range(explain.explanation_dags))

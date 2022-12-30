@@ -2,7 +2,7 @@ import logging
 import re
 import zlib
 from pathlib import Path
-from typing import Callable, Final
+from typing import Callable, Final, Any
 import urllib.parse
 
 import valid8
@@ -44,3 +44,12 @@ def pako_deflate_raw(data):
     compressed_data = compress.compress(urllib.parse.quote(data).encode())
     compressed_data += compress.flush()
     return compressed_data
+
+
+def call_with_difference_if_invalid_index(index: int, length: int, callback: Callable[[int], Any]):
+    if index >= 0:
+        if length <= index:
+            callback(index - length + 1)
+    else:
+        if length < -index:
+            callback(-index - length)
