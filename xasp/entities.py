@@ -33,6 +33,7 @@ class Explain:
     __serialization: Model = dataclasses.field(default=Model.empty(), init=False)
     __atoms_explained_by_initial_well_founded: Model = dataclasses.field(default=Model.empty(), init=False)
     __minimal_assumption_sets: List[Model] = dataclasses.field(default_factory=list, init=False)
+    __minimal_assumption_sets_block_constraints: List[str] = dataclasses.field(default_factory=list, init=False)
     __explanation_sequences: List[Model] = dataclasses.field(default_factory=list, init=False)
     __explanation_dags: List[Model] = dataclasses.field(default_factory=list, init=False)
     __igraph: List[Optional[igraph.Graph]] = dataclasses.field(default_factory=list, init=False)
@@ -307,10 +308,21 @@ class Explain:
         return self.compute_stable_model(encoding, context=ComputeWellFoundedContext())
 
     def __compute_minimal_assumption_set(self) -> Optional[Model]:
+        while len(self.__minimal_assumption_sets_block_constraints) < len(self.__minimal_assumption_sets):
+            validate("can enumerate", self.atoms_to_explain, max_len=1,
+                     help_msg="At most one atom to explain must be passed to the factory method")
+            mas = self.__minimal_assumption_sets[len(self.__minimal_assumption_sets_block_constraints)]
+            if len(self.atoms_to_explain) == 0:
+                self.__minimal_assumption_sets_block_constraints.append(mas.block_up)
+            else:
+                atom = f"assume_false({self.atoms_to_explain[0]})"
+                self.__minimal_assumption_sets_block_constraints.append(
+                    f"{mas.block_up}\n:- {'not ' if atom in (str(x) for x in mas) else ''}{atom}."
+                )
         encoding = MINIMAL_ASSUMPTION_SET_ENCODING + EXPLAIN_ENCODING + \
                    self.serialization.as_facts + \
                    self.atoms_explained_by_initial_well_founded.as_facts + \
-                   '\n'.join(model.block_up for model in self.__minimal_assumption_sets)
+                   '\n'.join(constraint for constraint in self.__minimal_assumption_sets_block_constraints)
         res = self.compute_stable_model(encoding)
         if not self.__minimal_assumption_sets:
             validate("res", res, help_msg="No stable model. The input is likely wrong.")

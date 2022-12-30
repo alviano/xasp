@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from xasp.primitives import Model
-from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
+from xasp.queries import compute_stable_model, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
     compute_explanations, compute_explanation_dags, compute_atoms_explained_by_initial_well_founded
 
@@ -25,7 +25,7 @@ def test_compute_program_serialization():
     model = compute_serialization("""
         a.
         b :- a, not c.
-    """, answer_set=Model.of_atoms("a", "b"), base=Model.of_atoms("a", "b", "c"))
+    """, answer_set=Model.of_atoms("a", "b"), additional_atoms_in_base=Model.of_atoms("a", "b", "c"))
     assert model == compute_stable_model("""
         rule(r1).
           head(r1,a).
@@ -44,7 +44,7 @@ def test_compute_program_serialization():
 def test_compute_program_serialization_for_aggregates_with_two_bounds():
     model = compute_serialization("""
         :- 0 <= #sum{X : p(X)} <= 1.
-    """, answer_set=Model.of_atoms("p(-1)", "p(1)"), base=Model.of_atoms("p(-1)", "p(1)", "p(2)"))
+    """, answer_set=Model.of_atoms("p(-1)", "p(1)"), additional_atoms_in_base=Model.of_atoms("p(-1)", "p(1)", "p(2)"))
     assert model == compute_stable_model("""
         rule(r1).
           pos_body(r1,agg1).
@@ -58,557 +58,6 @@ def test_compute_program_serialization_for_aggregates_with_two_bounds():
         true(p(1)).
         false(p(2)).
     """)
-
-
-@pytest.fixture
-def example1():
-    return compute_stable_model("""
-%* program
-
-(r1)    a.
-(r2)    b :- #sum{1 : a; 1 : c} >= 1.
-
-*%
-
-
-rule(r1).
-  head(r1,a).
-
-rule(r2).
-  head(r2,b).
-  pos_body(r2,agg1).
-
-aggregate(agg1, sum, ">=", 1).
-  agg_set(agg1, a, 1, ()).
-  agg_set(agg1, c, 1, ()).
-
-
-% answer set: a b
-false(c).
-true(a).
-true(b).
-    """)
-
-
-@pytest.fixture
-def example2():
-    return compute_stable_model("""
-%* program
-
-(r1)    a.
-(r2)    b :- #sum{1 : a; 1 : c} < 1.
-
-*%
-
-
-rule(r1).
-  head(r1,a).
-
-rule(r2).
-  head(r2,b).
-  pos_body(r2,agg1).
-
-aggregate(agg1, sum, "<", 1).
-  agg_set(agg1, a, 1, ()).
-  agg_set(agg1, c, 1, ()).
-
-
-% answer set: a
-false(c).
-true(a).
-false(b).
-    """)
-
-
-@pytest.fixture
-def example3():
-    return compute_stable_model("""
-%* program
-
-(r1)    body.
-(r2)    1 <= {a; b; c} <= 2 :- body.
-(r3)    d :- b.
-
-*%
-
-
-rule(r1).
-  head(r1,body).
-
-rule(r2).
-  choice(r2,1,2).
-  head(r2,a).
-  head(r2,b).
-  head(r2,c).
-  pos_body(r2,body).
-
-rule(r3).
-    head(r3,d).
-    pos_body(r3,b).
-    
-
-% answer set: body, a
-true(body).
-true(a).
-false(b).
-false(c).
-false(d).
-    """)
-
-
-@pytest.fixture
-def example4():
-    return compute_stable_model("""
-%* program
-
-(r1)    {a(1); a(2)}.
-(r2)    {b(X)} :- a(X).
-(r3)    c(X) :- a(X), not b(X).
-
-*%
-
-
-rule(r1).
-  choice(r1, 0, unbounded).
-  head(r1,a(1)).
-  head(r1,a(2)).
-
-rule(r2(X)) :- atom(a(X)).
-  choice(r2(X), 0, unbounded) :- rule(r2(X)).
-  head(r2(X),b(X)) :- rule(r2(X)).
-  pos_body(r2(X),a(X)) :- rule(r2(X)).
-
-rule(r3(X)) :- atom(a(X)), atom(b(X)).
-  head(r3(X),c(X)) :- rule(r3(X)).
-  pos_body(r3(X),a(X)) :- rule(r3(X)).
-  neg_body(r3(X),b(X)) :- rule(r3(X)).
-
-% answer set: a(1) a(2) b(1) c(2)
-true(a(1)).
-true(a(2)).
-true(b(1)).
-false(b(2)).
-false(c(1)).
-true(c(2)).
-atom(Atom) :- true(Atom).
-atom(Atom) :- false(Atom).
-    """).drop("atom")
-
-
-@pytest.fixture
-def example5():
-    return compute_stable_model("""
-%* program
-
-(r1)    a(1).
-(r2)    {b(X,0); b(X,1)} :- a(X).
-(r3)    c :- a(X), #sum{Y : b(X,Y)} >= X.
-
-*%
-
-
-rule(r1).
-  head(r1,a(1)).
-
-rule(r2(X)) :- atom(a(X)).
-  choice(r2(X), 0, unbounded) :- rule(r2(X)).
-  head(r2(X),b(X,0)) :- rule(r2(X)).
-  head(r2(X),b(X,1)) :- rule(r2(X)).
-  pos_body(r2(X),a(X)) :- rule(r2(X)).
-
-rule(r3(X)) :- atom(a(X)).  %, #sum{Y : true(b(X,Y))} >= X.
-  head(r3(X),c) :- rule(r3(X)).
-  pos_body(r3(X),a(X)) :- rule(r3(X)).
-  pos_body(r3(X),agg1(X)) :- rule(r3(X)).
-
-aggregate(agg1(X), sum, ">=", X) :- rule(r3(X)).
-  agg_set(agg1(X), b(X,Y), Y, ()) :- rule(r3(X)), atom(b(X,Y)).
-  
-  
-% answer set: a(1) b(1,0)
-true(a(1)).
-true(b(1,0)).
-false(b(1,1)).
-false(c).
-atom(Atom) :- true(Atom).
-atom(Atom) :- false(Atom).
-    """).drop("atom")
-
-
-def test_process_true_aggregate(example1):
-    model = process_aggregates(example1)
-    assert model.as_facts == '\n'.join(sorted([
-        "rule(r1).",
-        "head(r1,a).",
-        "rule(r2).",
-        "head(r2,b).",
-        "pos_body(r2,agg1).",
-        "aggregate(agg1).",
-        "true(agg1).",
-        "rule(agg1).",
-        "head(agg1,agg1).",
-        "pos_body(agg1,a).",
-        "neg_body(agg1,c).",
-        "false(c).",
-        "true(a).",
-        "true(b).",
-    ]))
-
-
-def test_process_false_aggregate(example2):
-    model = process_aggregates(example2)
-    assert model == compute_stable_model('\n'.join([
-        "rule(r1).",
-        "head(r1,a).",
-        "rule(r2).",
-        "head(r2,b).",
-        "pos_body(r2,agg1).",
-        "aggregate(agg1).",
-        "false(agg1).",
-        "rule((agg1,a)).",
-        "head((agg1,a),agg1).",
-        "neg_body((agg1,a),a).",
-        "rule((agg1,c)).",
-        "head((agg1,c),agg1).",
-        "pos_body((agg1,c),c).",
-        "false(c).",
-        "true(a).",
-        "false(b).",
-    ]))
-
-
-def test_compute_minimal_assumption_set(example1, example2, example3):
-    model = compute_minimal_assumption_set(example1)
-    assert len(model) == 0
-    model = compute_minimal_assumption_set(example2)
-    assert len(model) == 0
-    model = compute_minimal_assumption_set(example3)
-    assert model in [
-        compute_stable_model("""
-            assume_false(b).
-            assume_false(c).
-        """),
-        compute_stable_model("""
-            assume_false(c).
-            assume_false(d).
-        """),
-    ]
-
-
-def test_compute_explanation(example1, example2, example3):
-    model = compute_explanation(example1)
-    assert model in [
-        compute_stable_model("""
-            explained_by(1, c, initial_well_founded).
-            explained_by(2, a, (support,r1)).
-            explained_by(3, agg1, (support,agg1)).
-            explained_by(4, b, (support,r2)).
-        """),
-        compute_stable_model("""
-            explained_by(1, c, initial_well_founded).
-            explained_by(2, b, (support,r2)).
-            explained_by(3, a, (support,r1)).
-            explained_by(4, agg1, (support,agg1)).
-        """)
-    ]
-    model = compute_explanation(example2)
-    assert model in [
-        compute_stable_model("""
-            explained_by(1, c, initial_well_founded).
-            explained_by(2, b, initial_well_founded).
-            explained_by(3, agg1, initial_well_founded).
-            explained_by(4, a, (support,r1)).
-        """),
-        compute_stable_model("""
-            explained_by(1,agg1,initial_well_founded).
-            explained_by(2,b,initial_well_founded).
-            explained_by(3,c,initial_well_founded).
-            explained_by(4,a,(support,r1)).
-        """)
-    ]
-    model = compute_explanation(example3)
-    assert model in [
-        compute_stable_model("""
-            explained_by(1,c,assumption).
-            explained_by(2,b,assumption).
-            explained_by(3,d,lack_of_support).
-            explained_by(4,body,(support,r1)).
-            explained_by(5,a,(support,r2)).
-        """),
-        compute_stable_model("""
-            explained_by(1,d,assumption).
-            explained_by(2,c,assumption).
-            explained_by(3,body,(support,r1)).
-            explained_by(4,b,(required_to_falsify_body,r3)).
-            explained_by(5,a,(support,r2)).
-        """),
-        compute_stable_model("""
-            explained_by(1,c,assumption).
-            explained_by(2,d,assumption).
-            explained_by(3,body,(support,r1)).
-            explained_by(4,a,(support,r2)).
-            explained_by(5,b,(required_to_falsify_body,r3)).
-        """),
-        compute_stable_model("""
-            explained_by(1,c,assumption).
-            explained_by(2,d,assumption).
-            explained_by(3,body,(support,r1)).
-            explained_by(4,b,(required_to_falsify_body,r3)).
-            explained_by(5,a,(support,r2)).
-        """),
-        compute_stable_model("""
-            explained_by(1,c,assumption).
-            explained_by(2,d,assumption).
-            explained_by(3,b,(required_to_falsify_body,r3)).
-            explained_by(4,body,(support,r1)).
-            explained_by(5,a,(support,r2)).
-        """),
-    ]
-
-
-def test_compute_explanation_dag(example1, example2, example3):
-    model = compute_explanation_dag(example1)
-    assert model in [
-        compute_stable_model("""
-            link(1,c,initial_well_founded,"false").
-            link(2,a,(support,r1),"true").
-            link(3,agg1,(support,agg1),a).
-            link(3,agg1,(support,agg1),c).
-            link(4,b,(support,r2),agg1).
-        """),
-        compute_stable_model("""
-            link(1,c,initial_well_founded,"false").
-            link(2,b,(support,r2),agg1).
-            link(3,a,(support,r1),"true").
-            link(4,agg1,(support,agg1),a).
-            link(4,agg1,(support,agg1),c).
-        """),
-    ]
-    model = compute_explanation_dag(example2)
-    assert model in [
-        compute_stable_model("""
-            link(1,c,initial_well_founded,"false").
-            link(2,b,initial_well_founded,"false").
-            link(3,agg1,initial_well_founded,"false").
-            link(4,a,(support,r1),"true").
-        """),
-        compute_stable_model("""
-            link(1,agg1,initial_well_founded,"false").
-            link(2,b,initial_well_founded,"false").
-            link(3,c,initial_well_founded,"false").
-            link(4,a,(support,r1),"true").
-        """),
-    ]
-    model = compute_explanation_dag(example3)
-    assert model in [
-        compute_stable_model("""        
-            link(1,c,assumption,"false").
-            link(2,b,assumption,"false").
-            link(3,d,(lack_of_support,r3),(b,"false")).
-            link(4,body,(support,r1),"true").
-            link(5,a,(support,r2),body).
-        """),
-        compute_stable_model("""
-            link(1,d,assumption,"false").
-            link(2,c,assumption,"false").
-            link(3,body,(support,r1),"true").
-            link(4,b,(required_to_falsify_body,r3),d).
-            link(5,a,(support,r2),true).
-        """),
-        compute_stable_model("""
-            link(1,c,assumption,"false").
-            link(2,d,assumption,"false").
-            link(3,body,(support,r1),"true").
-            link(4,a,(support,r2),body).
-            link(5,b,(required_to_falsify_body,r3),d).
-        """),
-        compute_stable_model("""
-            link(1,c,assumption,"false").
-            link(2,d,assumption,"false").
-            link(3,body,(support,r1),"true").
-            link(4,b,(required_to_falsify_body,r3),d).
-            link(5,a,(support,r2),body).
-        """),
-        compute_stable_model("""
-            link(1,c,assumption,"false").
-            link(2,d,assumption,"false").
-            link(3,b,(required_to_falsify_body,r3),d).
-            link(4,body,(support,r1),"true").
-            link(5,a,(support,r2),body).
-        """),
-    ]
-
-
-def test_deal_with_symbolic_program(example4):
-    model = compute_minimal_assumption_set(example4)
-    assert model == compute_stable_model("assume_false(b(2)).")
-    model = compute_explanation(example4)
-    assert model in [
-        compute_stable_model("""
-            explained_by(1,b(2),assumption).
-            explained_by(2,c(1),initial_well_founded).
-            explained_by(3,a(1),(support,r1)).
-            explained_by(4,a(2),(support,r1)).
-            explained_by(5,b(1),(support,r2(1))).
-            explained_by(6,c(2),(support,r3(2))).
-        """),
-        compute_stable_model("""
-            explained_by(1,b(2),assumption).
-            explained_by(2,c(1),initial_well_founded).
-            explained_by(3,a(2),(support,r1)).
-            explained_by(4,a(1),(support,r1)).
-            explained_by(5,b(1),(support,r2(1))).
-            explained_by(6,c(2),(support,r3(2))).
-        """),
-        compute_stable_model("""
-            explained_by(1,c(1),initial_well_founded).
-            explained_by(2,b(2),assumption).
-            explained_by(3,c(2),(support,r3(2))).
-            explained_by(4,b(1),(support,r2(1))).
-            explained_by(5,a(1),(support,r1)).
-            explained_by(6,a(2),(support,r1)).
-        """),
-        compute_stable_model("""
-            explained_by(1,c(1),initial_well_founded).
-            explained_by(2,b(2),assumption).
-            explained_by(3,a(1),(support,r1)).
-            explained_by(4,a(2),(support,r1)).
-            explained_by(5,c(2),(support,r3(2))).
-            explained_by(6,b(1),(support,r2(1))).
-        """),
-        compute_stable_model("""
-            explained_by(1,b(2),assumption).
-            explained_by(2,c(1),initial_well_founded).
-            explained_by(3,a(1),(support,r1)).
-            explained_by(4,a(2),(support,r1)).
-            explained_by(5,c(2),(support,r3(2))).
-            explained_by(6,b(1),(support,r2(1))).
-        """),
-    ]
-    model = compute_explanation_dag(example4)
-    assert model in [
-        compute_stable_model("""
-            link(1,b(2),assumption,"false").
-            link(2,c(1),initial_well_founded,"false").
-            link(3,a(1),(support,r1),"true").
-            link(4,a(2),(support,r1),"true").
-            link(5,b(1),(support,r2(1)),a(1)).
-            link(6,c(2),(support,r3(2)),a(2)).
-            link(6,c(2),(support,r3(2)),b(2)).
-        """),
-        compute_stable_model("""
-            link(1,b(2),assumption,"false").
-            link(2,c(1),initial_well_founded,"false").
-            link(3,a(2),(support,r1),"true").
-            link(4,a(1),(support,r1),"true").
-            link(5,b(1),(support,r2(1)),a(1)).
-            link(6,c(2),(support,r3(2)),a(2)).
-            link(6,c(2),(support,r3(2)),b(2)).
-        """),
-        compute_stable_model("""
-            link(1,c(1),initial_well_founded,"false").
-            link(2,b(2),assumption,"false").
-            link(3,c(2),(support,r3(2)),a(2)).
-            link(3,c(2),(support,r3(2)),b(2)).
-            link(4,b(1),(support,r2(1)),a(1)).
-            link(5,a(1),(support,r1),"true").
-            link(6,a(2),(support,r1),"true").
-        """),
-        compute_stable_model("""
-            link(1,c(1),initial_well_founded,"false").
-            link(2,b(2),assumption,"false").
-            link(3,a(1),(support,r1),"true").
-            link(4,a(2),(support,r1),"true").
-            link(5,c(2),(support,r3(2)),a(2)).
-            link(5,c(2),(support,r3(2)),b(2)).
-            link(6,b(1),(support,r2(1)),a(1)).
-        """),
-        compute_stable_model("""
-            link(1,b(2),assumption,"false").
-            link(2,c(1),initial_well_founded,"false").
-            link(3,a(1),(support,r1),"true").
-            link(4,a(2),(support,r1),"true").
-            link(5,c(2),(support,r3(2)),a(2)).
-            link(5,c(2),(support,r3(2)),b(2)).
-            link(6,b(1),(support,r2(1)),a(1)).
-        """),
-    ]
-
-
-def test_deal_with_symbolic_program_and_aggregates(example5):
-    model = compute_minimal_assumption_set(example5)
-    assert model == compute_stable_model("assume_false(b(1,1)).")
-    model = compute_explanation(example5)
-    assert model in [
-        compute_stable_model("""
-            explained_by(1,b(1,1),assumption).
-            explained_by(2,a(1),(support,r1)).
-            explained_by(3,b(1,0),(support,r2(1))).
-            explained_by(4,agg1(1),lack_of_support).
-            explained_by(5,c,lack_of_support).
-        """),
-        compute_stable_model("""
-            explained_by(1,b(1,1),assumption).
-            explained_by(2,agg1(1),lack_of_support).
-            explained_by(3,c,lack_of_support).
-            explained_by(4,b(1,0),(support,r2(1))).
-            explained_by(5,a(1),(support,r1)).
-        """),
-        compute_stable_model("""
-            explained_by(1,b(1,1),assumption).
-            explained_by(2,a(1),(support,r1)).
-            explained_by(3,c,lack_of_support).
-            explained_by(4,b(1,0),(support,r2(1))).
-            explained_by(5,agg1(1),lack_of_support).
-        """),
-    ]
-    model = compute_explanation_dag(example5)
-
-    assert model in [
-        compute_stable_model("""
-            link(1,b(1,1),assumption,"false").
-            link(2,a(1),(support,r1),"true").
-            link(3,b(1,0),(support,r2(1)),a(1)).
-            link(4,agg1(1),(lack_of_support,(agg1(1),b(1,0))),b(1,0)).
-            link(4,agg1(1),(lack_of_support,(agg1(1),b(1,1))),b(1,1)).
-            link(5,c,(lack_of_support,r3(1)),agg1(1)).
-        """),
-        compute_stable_model("""
-            link(1,b(1,1),assumption,"false").
-            link(2,agg1(1),(lack_of_support,(agg1(1),b(1,0))),b(1,0)).
-            link(2,agg1(1),(lack_of_support,(agg1(1),b(1,1))),b(1,1)).
-            link(3,c,(lack_of_support,r3(1)),agg1(1)).
-            link(4,b(1,0),(support,r2(1)),a(1)).
-            link(5,a(1),(support,r1),"true").
-        """),
-    ]
-
-
-def test_serialization_with_propositional_aggregates(example1, example2, example3):
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} >= 1.", answer_set=Model.of_atoms(["a", "b"]),
-                                 base=Model.of_atoms("a", "b", "c")) == example1
-    assert compute_serialization("a. b :- #sum{1 : a; 1 : c} < 1.", answer_set=Model.of_atoms(["a"]),
-                                 base=Model.of_atoms("a", "b", "c")) == example2
-    assert compute_serialization("body.  1 <= {a; b; c} <= 2 :- body.  d :- b.",
-                                 answer_set=Model.of_atoms("body", "a"),
-                                 base=Model.of_atoms("body a b c d".split())) == example3
-
-
-def test_serialization_with_symbolic_program(example4, example5):
-    assert compute_serialization(
-        """
-            {a(1); a(2)}.
-            {b(X)} :- a(X).
-            c(X) :- a(X), not b(X).
-        """,
-        answer_set=Model.of_atoms("a(1) a(2) b(1) c(2)".split()),
-        base=Model.of_atoms("a(1) a(2) b(1) c(2) b(2) c(1)".split())) == example4
-    assert compute_serialization("""
-        a(1).
-        {b(X,0); b(X,1)} :- a(X).
-        c :- a(X), #sum{Y : b(X,Y)} >= X.
-    """, answer_set=Model.of_atoms("a(1) b(1,0)".split()),
-                                 base=Model.of_atoms("a(1) b(1,0) b(1,1) c".split())) == example5
 
 
 @pytest.fixture
@@ -648,7 +97,7 @@ def running_example_1():
         arc(a,d)
         arc(d,c)
         threshold(0)
-    """.strip().split('\n')), base=Model.of_atoms(atom.strip() for atom in """
+    """.strip().split('\n')), additional_atoms_in_base=Model.of_atoms(atom.strip() for atom in """
         arc(a,b)
         arc(d,a)
         arc(c,d)
@@ -679,7 +128,7 @@ def test_process_aggregate_with_variables():
             :- a(X), #sum{Y : b(X,Y)} > 0.
         """,
         answer_set=Model.of_atoms("a(1) a(2) b(1,2)".split()),
-        base=Model.of_atoms("b(2,1)")) == compute_stable_model("""
+        additional_atoms_in_base=Model.of_atoms("b(2,1)")) == compute_stable_model("""
         rule(r1(1)).
             pos_body(r1(1), a(1)).
             pos_body(r1(1), agg1(1)).
@@ -701,14 +150,17 @@ def test_lack_of_explanation_1():
     serialization = compute_serialization("""
         a :- not b. 
         b :- not a.
-    """, answer_set=Model.of_atoms('b'), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms('a'))
+    """, answer_set=Model.of_atoms('b'), additional_atoms_in_base=Model.of_atoms('a'),
+                                          atoms_to_explain=Model.of_atoms('a'))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     assert minimal_assumption_set == compute_stable_model("assume_false(a).")
 
 
 def test_lack_of_explanation_2():
-    serialization = compute_serialization("{a}.", answer_set=Model.of_atoms(), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms('a'))
+    serialization = compute_serialization("{a}.", answer_set=Model.of_atoms(),
+                                          additional_atoms_in_base=Model.of_atoms('a'),
+                                          atoms_to_explain=Model.of_atoms('a'))
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 1
     assert minimal_assumption_set == compute_stable_model("assume_false(a).")
@@ -716,18 +168,22 @@ def test_lack_of_explanation_2():
 
 def test_lack_of_explanation_3():
     serialization = compute_serialization("a :- #sum{1 : a} >= 0.", answer_set=Model.of_atoms('a'),
-                                          base=Model.of_atoms(),
+                                          additional_atoms_in_base=Model.of_atoms(),
                                           atoms_to_explain=Model.of_atoms('a'))
     with pytest.raises(TypeError):
         compute_minimal_assumption_set(serialization)
 
 
 def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
-    serialization = compute_serialization("""
-        a :- not b.
-        b :- not a.
-        :- b.
-    """, answer_set=Model.of_atoms('a'), base=Model.of_atoms('b'), atoms_to_explain=Model.of_atoms("a"))
+    serialization = compute_serialization(
+        """
+            a :- not b.
+            b :- not a.
+            :- b.
+        """,
+        answer_set=Model.of_atoms('a'),
+        additional_atoms_in_base=Model.of_atoms('b'),
+        atoms_to_explain=Model.of_atoms("a"))
     dag = compute_explanation_dag(serialization)
     assert dag == compute_stable_model("""
         link(1,b,(required_to_falsify_body,r3),"false").
@@ -738,7 +194,8 @@ def test_atom_inferred_by_constraint_like_rules_can_be_linked_to_false():
 def test_atom_inferred_by_choice_rules_can_be_linked_to_false():
     serialization = compute_serialization("""
         {a} <= 0.
-    """, answer_set=Model.of_atoms(), base=Model.of_atoms('a'), atoms_to_explain=Model.of_atoms("a"))
+    """, answer_set=Model.of_atoms(), additional_atoms_in_base=Model.of_atoms('a'),
+                                          atoms_to_explain=Model.of_atoms("a"))
     dag = compute_explanation_dag(serialization)
     assert dag == compute_stable_model("""
         link(1,a,(choice_rule,r1),"false").
@@ -786,7 +243,7 @@ def test_3_col():
     color(yellow).
 
     :- edge(X,Y), colored(X, Z), colored(Y, Z).
-    """, answer_set=Model.of_atoms(true_atoms), base=Model.of_atoms(atom.strip() for atom in """
+    """, answer_set=Model.of_atoms(true_atoms), additional_atoms_in_base=Model.of_atoms(atom.strip() for atom in """
     colored(3,yellow)
     colored(3,red)
     colored(2,yellow)
@@ -803,20 +260,30 @@ def test_3_col():
 
 
 def test_compute_all_minimal_assumption_sets():
-    serialization = compute_serialization("""
+    serialization = compute_serialization(
+        """
             a :- not b.
             b :- not a.
             c :- not a.
             a :- not c.
-        """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("b", "c"), atoms_to_explain=Model.of_atoms("a"))
-    minimal_assumption_sets = compute_minimal_assumption_sets(serialization)
+        """,
+        answer_set=Model.of_atoms("a"),
+        additional_atoms_in_base=Model.of_atoms("b", "c"),
+        atoms_to_explain=Model.of_atoms("a")
+    )
+    minimal_assumption_sets = compute_minimal_assumption_sets(serialization, atoms_to_explain=Model.of_atoms("a"))
     assert len(minimal_assumption_sets) == 2
 
 
 def test_rule_with_arithmetic():
-    serialization = compute_serialization("""
-        a(X) :- X = 1..2.
-    """, answer_set=Model.of_atoms("a(1)", "a(2)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(1)"))
+    serialization = compute_serialization(
+        """
+            a(X) :- X = 1..2.
+        """,
+        answer_set=Model.of_atoms("a(1)", "a(2)"),
+        additional_atoms_in_base=Model.of_atoms(),
+        atoms_to_explain=Model.of_atoms("a(1)")
+    )
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 0
     assert compute_explanation(serialization) == compute_stable_model("""
@@ -830,46 +297,69 @@ def test_rule_with_arithmetic():
 
 
 def test_compute_explanations():
-    serialization = compute_serialization("""
-        {a; b}.
-        :- a, not b.
-        :- b, not a.
-        c :- a, b.
-    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
-    explanations = compute_explanations(serialization)
+    serialization = compute_serialization(
+        """
+            {a; b}.
+            :- a, not b.
+            :- b, not a.
+            c :- a, b.
+        """,
+        answer_set=Model.of_atoms(),
+        additional_atoms_in_base=Model.of_atoms("a", "b", "c"),
+        atoms_to_explain=Model.of_atoms("c")
+    )
+    explanations = compute_explanations(serialization, atoms_to_explain=Model.of_atoms("c"))
     assert len(explanations) == 2
 
 
 def test_compute_dags():
-    serialization = compute_serialization("""
-        {a; b}.
-        c :- a, b.
-    """, answer_set=Model.of_atoms(), base=Model.of_atoms("a", "b", "c"), atoms_to_explain=Model.of_atoms("c"))
-    assert len(compute_explanation_dags(serialization)) == 2
+    serialization = compute_serialization(
+        """
+            {a; b}.
+            c :- a, b.
+        """,
+        answer_set=Model.of_atoms(),
+        additional_atoms_in_base=Model.of_atoms("a", "b", "c"),
+        atoms_to_explain=Model.of_atoms("c")
+    )
+    assert len(compute_explanation_dags(serialization, Model.of_atoms("c"))) == 2
 
 
 def test_choice_rule_with_condition_arithmetic():
-    serialization = compute_serialization("""
-        {a(X) : X = 1..2} = 1.
-    """, answer_set=Model.of_atoms("a(1)"), base=Model.of_atoms("a(2)"), atoms_to_explain=Model.of_atoms("a(2)"))
+    serialization = compute_serialization(
+        """
+            {a(X) : X = 1..2} = 1.
+        """,
+        answer_set=Model.of_atoms("a(1)"),
+        additional_atoms_in_base=Model.of_atoms("a(2)"),
+        atoms_to_explain=Model.of_atoms("a(2)")
+    )
     explanation = compute_explanation(serialization)
     assert "explained_by(2,a(2),(choice_rule,r1))." in explanation.as_facts
 
 
 def test_choice_rule_with_condition_involving_atoms():
-    serialization = compute_serialization("""
-        {a(X) : X = 1..5, b(X)} = 1.
-        b(0).
-        b(3).
-    """, answer_set=Model.of_atoms("a(3)", "b(0)", "b(3)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(3)"))
+    serialization = compute_serialization(
+        """
+            {a(X) : X = 1..5, b(X)} = 1.
+            b(0).
+            b(3).
+        """,
+        answer_set=Model.of_atoms("a(3)", "b(0)", "b(3)"),
+        additional_atoms_in_base=Model.of_atoms(),
+        atoms_to_explain=Model.of_atoms("a(3)")
+    )
     dag = compute_explanation_dag(serialization)
     assert 'link(3,a(3),(support,r1),"true").' in dag.as_facts
 
 
 def test_rule_with_compressed_head():
-    serialization = compute_serialization("""
-        a(1;2).
-    """, answer_set=Model.of_atoms("a(1)", "a(2)"), base=Model.of_atoms(), atoms_to_explain=Model.of_atoms("a(1)"))
+    serialization = compute_serialization(
+        "a(1;2).",
+        answer_set=Model.of_atoms("a(1)", "a(2)"),
+        additional_atoms_in_base=Model.of_atoms(),
+        atoms_to_explain=Model.of_atoms("a(1)")
+    )
     explanation = compute_explanation(serialization)
     assert "explained_by(1,a(1),(support,r1))." in explanation.as_facts
 
@@ -877,14 +367,15 @@ def test_rule_with_compressed_head():
 def test_strong_negation():
     serialization = compute_serialization("""
         {a; -a}.
-    """, answer_set=Model.of_atoms("a"), base=Model.of_atoms("a", "-a"),
+    """, answer_set=Model.of_atoms("a"), additional_atoms_in_base=Model.of_atoms("a", "-a"),
                                           atoms_to_explain=Model.of_atoms("a"))
     explanation = compute_explanation(serialization)
     assert "explained_by(2,-a,(required_to_falsify_body,r2))." in explanation.as_facts
 
 
 def test_atoms_in_negative_literals_are_added_to_the_base_during_serialization():
-    serialization = compute_serialization("a :- not b.", answer_set=Model.of_atoms("a"), base=Model.empty(),
+    serialization = compute_serialization("a :- not b.", answer_set=Model.of_atoms("a"),
+                                          additional_atoms_in_base=Model.empty(),
                                           atoms_to_explain=Model.of_atoms("a"))
     assert "false(b)." in serialization.as_facts
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
@@ -903,7 +394,7 @@ def test_compute_well_founded():
         f :- e.
         f :- not c.
         i :- c, not d.
-    """, answer_set=Model.of_atoms("c", "i", "a"), base=Model.of_atoms("a b c d e f g h i".split()),
+    """, answer_set=Model.of_atoms("c", "i", "a"), additional_atoms_in_base=Model.of_atoms("a b c d e f g h i".split()),
                                           atoms_to_explain=Model.empty())
     well_founded = compute_atoms_explained_by_initial_well_founded(serialization)
     assert compute_stable_model("""
@@ -913,3 +404,15 @@ def test_compute_well_founded():
         explained_by(g,initial_well_founded).
         explained_by(h,initial_well_founded).
     """) == well_founded
+
+
+def test_minimal_assumption_set_block_up_must_take_into_account_weights():
+    serialization = compute_serialization("""
+        {a; b}.
+        c :- a.
+        c :- b.
+    """, answer_set=Model.empty(), atoms_to_explain=Model.of_atoms("c"))
+    sets = compute_minimal_assumption_sets(serialization, Model.of_atoms("c"))
+    for s in sets: print(s.as_facts ,'-')
+    assert "c." not in sets[0].as_facts
+    assert len(sets) == 1

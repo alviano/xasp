@@ -14,13 +14,13 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     return Model.of(control)
 
 
-def compute_serialization(asp_program: str, answer_set: Model, base: Model,
+def compute_serialization(asp_program: str, answer_set: Model, additional_atoms_in_base: Model = Model.empty(),
                           atoms_to_explain: Model = Model.empty()) -> Model:
     return Explain.the_program(
         asp_program,
         the_answer_set=answer_set,
         the_atoms_to_explain=atoms_to_explain,
-        the_additional_atoms_in_the_base=base,
+        the_additional_atoms_in_the_base=additional_atoms_in_base,
     ).serialization.drop("original_rule")
 
 
@@ -39,12 +39,17 @@ def compute_atoms_explained_by_initial_well_founded(serialization: Model) -> Mod
 
 
 def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
-    return compute_minimal_assumption_sets(to_be_explained_serialization, up_to=1)[-1]
+    return Explain.the_serialization(to_be_explained_serialization).minimal_assumption_set()
 
 
-def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
+def compute_minimal_assumption_sets(
+        to_be_explained_serialization: Model,
+        atoms_to_explain: Model,
+        up_to: Optional[int] = None
+) -> tuple[Model]:
     explain = Explain.the_serialization(
-        to_be_explained_serialization
+        to_be_explained_serialization,
+        the_atoms_to_explain=atoms_to_explain,
     )
     explain.compute_minimal_assumption_set(
         repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
@@ -53,12 +58,17 @@ def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to:
 
 
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
-    return compute_explanations(to_be_explained_serialization, up_to=1)[-1]
+    return Explain.the_serialization(to_be_explained_serialization).explanation_sequence()
 
 
-def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
+def compute_explanations(
+        to_be_explained_serialization: Model,
+        atoms_to_explain: Model,
+        up_to: Optional[int] = None
+) -> tuple[Model]:
     explain = Explain.the_serialization(
-        to_be_explained_serialization
+        to_be_explained_serialization,
+        the_atoms_to_explain=atoms_to_explain,
     )
     explain.compute_explanation_sequence(
         repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
@@ -67,12 +77,17 @@ def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[i
 
 
 def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
-    return compute_explanation_dags(to_be_explained_serialization, up_to=1)[-1]
+    return Explain.the_serialization(to_be_explained_serialization).explanation_dag()
 
 
-def compute_explanation_dags(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
+def compute_explanation_dags(
+        to_be_explained_serialization: Model,
+        atoms_to_explain: Model,
+        up_to: Optional[int] = None
+) -> tuple[Model]:
     explain = Explain.the_serialization(
-        to_be_explained_serialization
+        to_be_explained_serialization,
+        the_atoms_to_explain=atoms_to_explain,
     )
     explain.compute_explanation_dag(
         repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
