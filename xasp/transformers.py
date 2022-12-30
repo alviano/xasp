@@ -38,11 +38,11 @@ class Transformer(clingo.ast.Transformer):
     def input(self, location: Location) -> str:
         res = []
         if location.begin.line == location.end.line:
-            res.append(self.__input[location.begin.line - 1][location.begin.column - 1:location.end.column])
+            res.append(self.__input[location.begin.line - 1][location.begin.column - 1:location.end.column - 1])
         else:
             res.append(self.__input[location.begin.line - 1][location.begin.column - 1:])
             res.extend(self.__input[location.begin.line:location.end.line - 1])
-            res.append(self.__input[location.end.line - 1][:location.end.column])
+            res.append(self.__input[location.end.line - 1][:location.end.column - 1])
         return '\n'.join(line.rstrip() for line in res if line.strip())
 
     def encode_input(self, location: Location) -> str:
