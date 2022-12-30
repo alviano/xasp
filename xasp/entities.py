@@ -165,19 +165,15 @@ class Explain:
         validate("atoms_to_explain", self.__atoms_to_explain, help_msg="Atoms to explain were not provided")
         validate("additional_atoms_in_the_base", self.__additional_atoms_in_the_base,
                  help_msg="Additional atoms were not provided")
-        if self.__state < Explain.State.EXPLANATION_DAG_COMPUTED:
-            self.compute_explanation_dag()
-        validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
-        validate("index", index, min_value=-len(self.__explanation_dags), max_value=len(self.__explanation_dags) - 1)
-        self.__igraph.extend(None for _ in range(index + 1 if index >= 0 else -index))
+        validate("must have a DAG", self.explanation_dag(index), help_msg="No DAG with the given index")
+        while len(self.__igraph) < self.explanation_dags:
+            self.__igraph.append(None)
         if self.__igraph[index] is None:
             self.__igraph[index] = self.__compute_igraph(dag=self.__explanation_dags[index])
         self.__state = Explain.State.IGRAPH_COMPUTED
 
     def save_igraph(self, filename: Path, index: int = -1, **kwargs) -> None:
-        if self.__state < Explain.State.IGRAPH_COMPUTED:
-            self.compute_igraph()
-        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
+        self.compute_igraph(index)
         igraph.plot(
             self.__igraph,
             layout=self.__igraph[index].layout_kamada_kawai(),
@@ -189,12 +185,10 @@ class Explain:
         )
 
     def show_navigator_graph(self, index: int = -1) -> None:
-        if self.__state < Explain.State.IGRAPH_COMPUTED:
-            self.compute_igraph(index)
-        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
+        self.compute_igraph(index)
         url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
-        json_dump = json.dumps(self.navigator_graph(), separators=(',', ':')).encode()
+        json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode()
         webbrowser.open(url, new=0, autoraise=True)
 
@@ -251,9 +245,7 @@ class Explain:
         return self.__explanation_dags[index]
 
     def navigator_graph(self, index: int = -1) -> Dict:
-        if self.__state < Explain.State.IGRAPH_COMPUTED:
-            self.compute_igraph(index)
-        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
+        self.compute_igraph(index)
         graph = self.__igraph[index]
         res = {
             "nodes": [
