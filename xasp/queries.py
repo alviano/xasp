@@ -4,7 +4,7 @@ import clingo
 import clingo.ast
 
 from xasp.entities import Explain
-from xasp.primitives import Model
+from xasp.primitives import Model, PositiveIntegerOrUnbounded
 
 
 def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Optional[Model]:
@@ -46,7 +46,9 @@ def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to:
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
-    explain.compute_minimal_assumption_set(repeat=up_to)
+    explain.compute_minimal_assumption_set(
+        repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded()
+    )
     return explain.minimal_assumption_sets
 
 
@@ -58,7 +60,7 @@ def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[i
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
-    explain.compute_explanation_sequence(repeat=up_to)
+    explain.compute_explanation_sequence(repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded())
     return explain.explanation_sequences
 
 
@@ -70,5 +72,5 @@ def compute_explanation_dags(to_be_explained_serialization: Model, up_to: Option
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
-    explain.compute_explanation_dag(repeat=up_to)
+    explain.compute_explanation_dag(repeat=up_to if up_to is not None else PositiveIntegerOrUnbounded.of_unbounded())
     return explain.explanation_dags

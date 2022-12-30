@@ -6,14 +6,14 @@ import zlib
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
-from typing import Callable, Final, Optional, Tuple, Dict, List, Any
+from typing import Callable, Final, Optional, Tuple, Dict, List, Any, Union
 
 import clingo
 import igraph
 import typeguard
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
-from xasp.primitives import Model
+from xasp.primitives import Model, PositiveIntegerOrUnbounded
 from xasp.transformers import ProgramSerializerTransformer
 from xasp.utils import validate
 
@@ -110,30 +110,28 @@ class Explain:
         self.__atoms_explained_by_initial_well_founded = self.__compute_atoms_explained_by_initial_well_founded()
         self.__state = Explain.State.WELL_FOUNDED_COMPUTED
 
-    def compute_minimal_assumption_set(self, repeat: Optional[int] = 1) -> None:
-        if repeat is not None:
-            validate("up_to", repeat, min_value=1)
+    def compute_minimal_assumption_set(self, repeat: Union[int, PositiveIntegerOrUnbounded] = 1) -> None:
+        if type(repeat) is int:
+            repeat = PositiveIntegerOrUnbounded.of(repeat)
         if self.__state < Explain.State.WELL_FOUNDED_COMPUTED:
             self.compute_atoms_explained_by_initial_well_founded()
         validate("state", self.__state, min_value=Explain.State.WELL_FOUNDED_COMPUTED)
-        if repeat is not None:
-            repeat += len(self.__minimal_assumption_sets)
-        while repeat is None or len(self.__minimal_assumption_sets) < repeat:
+        repeat += len(self.__minimal_assumption_sets)
+        while repeat.greater_than(len(self.__minimal_assumption_sets)):
             assumption_set = self.__compute_minimal_assumption_set()
             if assumption_set is None:
                 break
             self.__minimal_assumption_sets.append(assumption_set)
         self.__state = Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED
 
-    def compute_explanation_sequence(self, repeat: Optional[int] = 1) -> None:
-        if repeat is not None:
-            validate("up_to", repeat, min_value=1)
+    def compute_explanation_sequence(self, repeat: Union[int, PositiveIntegerOrUnbounded] = 1) -> None:
+        if type(repeat) is int:
+            repeat = PositiveIntegerOrUnbounded.of(repeat)
         if self.__state < Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED:
             self.compute_minimal_assumption_set()
         validate("state", self.__state, min_value=Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
-        if repeat is not None:
-            repeat += len(self.__explanation_sequences)
-        while repeat is None or len(self.__explanation_sequences) < repeat:
+        repeat += len(self.__explanation_sequences)
+        while repeat.greater_than(len(self.__explanation_sequences)):
             explanation = self.__compute_explanation_sequence()
             if explanation is not None:
                 self.__explanation_sequences.append(explanation)
@@ -144,15 +142,14 @@ class Explain:
                     break
         self.__state = Explain.State.EXPLANATION_SEQUENCE_COMPUTED
 
-    def compute_explanation_dag(self, repeat: Optional[int] = 1) -> None:
-        if repeat is not None:
-            validate("up_to", repeat, min_value=1)
+    def compute_explanation_dag(self, repeat: Union[int, PositiveIntegerOrUnbounded] = 1) -> None:
+        if type(repeat) is int:
+            repeat = PositiveIntegerOrUnbounded.of(repeat)
         if self.__state < Explain.State.EXPLANATION_SEQUENCE_COMPUTED:
             self.compute_explanation_sequence()
         validate("state", self.__state, min_value=Explain.State.EXPLANATION_SEQUENCE_COMPUTED)
-        if repeat is not None:
-            repeat += len(self.__explanation_dags)
-        while repeat is None or len(self.__explanation_dags) < repeat:
+        repeat += len(self.__explanation_dags)
+        while repeat.greater_than(len(self.__explanation_dags)):
             dag = self.__compute_explanation_dag()
             if dag is not None:
                 self.__explanation_dags.append(dag)
