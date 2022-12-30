@@ -312,13 +312,11 @@ class Explain:
             validate("can enumerate", self.atoms_to_explain, max_len=1,
                      help_msg="At most one atom to explain must be passed to the factory method")
             mas = self.__minimal_assumption_sets[len(self.__minimal_assumption_sets_block_constraints)]
-            if len(self.atoms_to_explain) == 0:
-                self.__minimal_assumption_sets_block_constraints.append(mas.block_up)
-            else:
+            self.__minimal_assumption_sets_block_constraints.append(mas.block_up)
+            if len(self.atoms_to_explain) > 0 and len(self.__minimal_assumption_sets_block_constraints) == 1:
                 atom = f"assume_false({self.atoms_to_explain[0]})"
-                self.__minimal_assumption_sets_block_constraints.append(
-                    f"{mas.block_up}\n:- {'not ' if atom in (str(x) for x in mas) else ''}{atom}."
-                )
+                self.__minimal_assumption_sets_block_constraints[0] += \
+                    f"\n:- {'not ' if atom in (str(x) for x in mas) else ''}{atom}."
         encoding = MINIMAL_ASSUMPTION_SET_ENCODING + EXPLAIN_ENCODING + \
                    self.serialization.as_facts + \
                    self.atoms_explained_by_initial_well_founded.as_facts + \
