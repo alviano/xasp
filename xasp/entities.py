@@ -6,7 +6,7 @@ import zlib
 from dataclasses import InitVar
 from enum import auto, IntEnum
 from pathlib import Path
-from typing import Callable, Final, Optional, Tuple, Dict, List
+from typing import Callable, Final, Optional, Tuple, Dict, List, Any
 
 import clingo
 import igraph
@@ -20,10 +20,11 @@ from xasp.utils import validate
 
 @typeguard.typechecked
 @dataclasses.dataclass
-class Explanation:
-    compute_stable_model: InitVar[Callable]
+class Explain:
+    key: InitVar[Any]
+    __key = object()
 
-    __state: "Explanation.State" = dataclasses.field(default_factory=lambda: Explanation.State.INITIAL, init=False)
+    __state: "Explain.State" = dataclasses.field(default_factory=lambda: Explain.State.INITIAL, init=False)
     __commands_implementation: Dict[str, Callable] = dataclasses.field(default_factory=dict)
     __asp_program: Optional[str] = dataclasses.field(default=None, init=False)
     __answer_set: Optional[Model] = dataclasses.field(default=None, init=False)
@@ -36,12 +37,6 @@ class Explanation:
     __explanation_dags: List[Model] = dataclasses.field(default_factory=list, init=False)
     __igraph: Optional[igraph.Graph] = dataclasses.field(default=None, init=False)
 
-    def __post_init__(
-            self,
-            compute_stable_model: Callable,
-    ):
-        self.__commands_implementation["compute_stable_model"] = compute_stable_model
-
     class State(IntEnum):
         INITIAL = auto()
         SERIALIZED = auto()
@@ -52,134 +47,137 @@ class Explanation:
         EXPLANATION_DAG_COMPUTED = auto()
         IGRAPH_COMPUTED = auto()
 
-    def given_the_program(self,
-                          value: str = "",
-                          the_answer_set: Model = Model.empty(),
-                          the_atoms_to_explain: Model = Model.empty(),
-                          the_additional_atoms_in_the_base: Model = Model.empty()
-                          ) -> "Explanation":
-        validate("state", self.__state, equals=Explanation.State.INITIAL)
-        self.__asp_program = value
-        self.__answer_set = the_answer_set
-        self.__atoms_to_explain = the_atoms_to_explain
-        self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
-        return self.__compute_serialization()
+    def __post_init__(self, key):
+        validate("key", key, equals=self.__key, help_msg="Use a factory method")
 
-    def given_the_serialization(self,
-                                value: Model,
-                                the_answer_set: Optional[Model] = None,
-                                the_atoms_to_explain: Optional[Model] = None,
-                                the_additional_atoms_in_the_base: Model = Model.empty(),
-                                ) -> "Explanation":
-        validate("state", self.__state, equals=Explanation.State.INITIAL)
-        self.__serialization = value
-        self.__answer_set = the_answer_set
-        self.__atoms_to_explain = the_atoms_to_explain
-        self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
-        self.__state = Explanation.State.SERIALIZED
-        return self
+    @staticmethod
+    def the_program(
+            value: str = "",
+            the_answer_set: Model = Model.empty(),
+            the_atoms_to_explain: Model = Model.empty(),
+            the_additional_atoms_in_the_base: Model = Model.empty()
+    ) -> "Explain":
+        res = Explain(key=Explain.__key)
+        res.__asp_program = value
+        res.__answer_set = the_answer_set
+        res.__atoms_to_explain = the_atoms_to_explain
+        res.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
+        res.__compute_serialization()
+        return res
 
-    def given_the_dag(self,
-                      value: Model,
-                      the_answer_set: Optional[Model] = None,
-                      the_atoms_to_explain: Optional[Model] = None,
-                      the_additional_atoms_in_the_base: Model = Model.empty(),
-                      ) -> "Explanation":
-        validate("state", self.__state, equals=Explanation.State.INITIAL)
-        self.__explanation_dags.append(value)
-        self.__state = Explanation.State.SERIALIZED
-        self.__answer_set = the_answer_set
-        self.__atoms_to_explain = the_atoms_to_explain
-        self.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
-        self.__state = Explanation.State.EXPLANATION_DAG_COMPUTED
-        return self
+    @staticmethod
+    def the_serialization(
+            value: Model,
+            the_answer_set: Optional[Model] = None,
+            the_atoms_to_explain: Optional[Model] = None,
+            the_additional_atoms_in_the_base: Model = Model.empty(),
+    ) -> "Explain":
+        res = Explain(key=Explain.__key)
+        res.__serialization = value
+        res.__answer_set = the_answer_set
+        res.__atoms_to_explain = the_atoms_to_explain
+        res.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
+        res.__state = Explain.State.SERIALIZED
+        return res
 
-    def process_aggregates(self) -> "Explanation":
-        if self.__state < Explanation.State.SERIALIZED:
+    @staticmethod
+    def the_dag(
+            value: Model,
+            the_answer_set: Optional[Model] = None,
+            the_atoms_to_explain: Optional[Model] = None,
+            the_additional_atoms_in_the_base: Model = Model.empty(),
+    ) -> "Explain":
+        res = Explain(key=Explain.__key)
+        res.__explanation_dags.append(value)
+        res.__state = Explain.State.SERIALIZED
+        res.__answer_set = the_answer_set
+        res.__atoms_to_explain = the_atoms_to_explain
+        res.__additional_atoms_in_the_base = the_additional_atoms_in_the_base
+        res.__state = Explain.State.EXPLANATION_DAG_COMPUTED
+        return res
+
+    def process_aggregates(self) -> None:
+        if self.__state < Explain.State.SERIALIZED:
             self.__compute_serialization()
-        validate("state", self.__state, equals=Explanation.State.SERIALIZED)
+        validate("state", self.__state, equals=Explain.State.SERIALIZED)
         self.__serialization = self.__process_aggregates()
-        self.__state = Explanation.State.AGGREGATE_PROCESSED
-        return self
+        self.__state = Explain.State.AGGREGATE_PROCESSED
 
-    def compute_atoms_explained_by_initial_well_founded(self) -> "Explanation":
-        if self.__state < Explanation.State.AGGREGATE_PROCESSED:
+    def compute_atoms_explained_by_initial_well_founded(self) -> None:
+        if self.__state < Explain.State.AGGREGATE_PROCESSED:
             self.process_aggregates()
-        validate("state", self.__state, equals=Explanation.State.AGGREGATE_PROCESSED)
+        validate("state", self.__state, equals=Explain.State.AGGREGATE_PROCESSED)
         self.__atoms_explained_by_initial_well_founded = self.__compute_atoms_explained_by_initial_well_founded()
-        self.__state = Explanation.State.WELL_FOUNDED_COMPUTED
-        return self
+        self.__state = Explain.State.WELL_FOUNDED_COMPUTED
 
-    def compute_minimal_assumption_sets(self, up_to: Optional[int] = 1) -> "Explanation":
-        if up_to is not None:
-            validate("up_to", up_to, min_value=1)
-        if self.__state < Explanation.State.WELL_FOUNDED_COMPUTED:
+    def compute_minimal_assumption_set(self, repeat: Optional[int] = 1) -> None:
+        if repeat is not None:
+            validate("up_to", repeat, min_value=1)
+        if self.__state < Explain.State.WELL_FOUNDED_COMPUTED:
             self.compute_atoms_explained_by_initial_well_founded()
-        validate("state", self.__state, min_value=Explanation.State.WELL_FOUNDED_COMPUTED)
-        if up_to is not None:
-            up_to += len(self.__minimal_assumption_sets)
-        while up_to is None or len(self.__minimal_assumption_sets) < up_to:
+        validate("state", self.__state, min_value=Explain.State.WELL_FOUNDED_COMPUTED)
+        if repeat is not None:
+            repeat += len(self.__minimal_assumption_sets)
+        while repeat is None or len(self.__minimal_assumption_sets) < repeat:
             assumption_set = self.__compute_minimal_assumption_set()
             if assumption_set is None:
                 break
             self.__minimal_assumption_sets.append(assumption_set)
-        self.__state = Explanation.State.MINIMAL_ASSUMPTION_SET_COMPUTED
-        return self
+        self.__state = Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED
 
-    def compute_explanation_sequences(self, up_to: Optional[int] = 1) -> "Explanation":
-        if up_to is not None:
-            validate("up_to", up_to, min_value=1)
-        if self.__state < Explanation.State.MINIMAL_ASSUMPTION_SET_COMPUTED:
-            self.compute_minimal_assumption_sets()
-        validate("state", self.__state, min_value=Explanation.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
-        if up_to is not None:
-            up_to += len(self.__explanation_sequences)
-        while up_to is None or len(self.__explanation_sequences) < up_to:
+    def compute_explanation_sequence(self, repeat: Optional[int] = 1) -> None:
+        if repeat is not None:
+            validate("up_to", repeat, min_value=1)
+        if self.__state < Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED:
+            self.compute_minimal_assumption_set()
+        validate("state", self.__state, min_value=Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
+        if repeat is not None:
+            repeat += len(self.__explanation_sequences)
+        while repeat is None or len(self.__explanation_sequences) < repeat:
             explanation = self.__compute_explanation_sequence()
             if explanation is not None:
                 self.__explanation_sequences.append(explanation)
             else:
                 assumption_sets = len(self.__minimal_assumption_sets)
-                self.compute_minimal_assumption_sets()
+                self.compute_minimal_assumption_set()
                 if len(self.__minimal_assumption_sets) == assumption_sets:
                     break
-        self.__state = Explanation.State.EXPLANATION_SEQUENCE_COMPUTED
-        return self
+        self.__state = Explain.State.EXPLANATION_SEQUENCE_COMPUTED
 
-    def compute_explanation_dags(self, up_to: Optional[int] = 1) -> "Explanation":
-        if up_to is not None:
-            validate("up_to", up_to, min_value=1)
-        if self.__state < Explanation.State.EXPLANATION_SEQUENCE_COMPUTED:
-            self.compute_explanation_sequences()
-        validate("state", self.__state, min_value=Explanation.State.EXPLANATION_SEQUENCE_COMPUTED)
-        if up_to is not None:
-            up_to += len(self.__explanation_dags)
-        while up_to is None or len(self.__explanation_dags) < up_to:
+    def compute_explanation_dag(self, repeat: Optional[int] = 1) -> None:
+        if repeat is not None:
+            validate("up_to", repeat, min_value=1)
+        if self.__state < Explain.State.EXPLANATION_SEQUENCE_COMPUTED:
+            self.compute_explanation_sequence()
+        validate("state", self.__state, min_value=Explain.State.EXPLANATION_SEQUENCE_COMPUTED)
+        if repeat is not None:
+            repeat += len(self.__explanation_dags)
+        while repeat is None or len(self.__explanation_dags) < repeat:
             dag = self.__compute_explanation_dag()
             if dag is not None:
                 self.__explanation_dags.append(dag)
             else:
                 sequences = len(self.__explanation_sequences)
-                self.compute_explanation_sequences()
+                self.compute_explanation_sequence()
                 if len(self.__explanation_sequences) == sequences:
                     break
-        self.__state = Explanation.State.EXPLANATION_DAG_COMPUTED
-        return self
+        self.__state = Explain.State.EXPLANATION_DAG_COMPUTED
 
-    def compute_igraph(self) -> "Explanation":
+    def compute_igraph(self) -> None:
         validate("answer_set", self.__answer_set, help_msg="Answer set was not provided")
         validate("atoms_to_explain", self.__atoms_to_explain, help_msg="Atoms to explain were not provided")
         validate("additional_atoms_in_the_base", self.__additional_atoms_in_the_base,
                  help_msg="Additional atoms were not provided")
-        if self.__state < Explanation.State.EXPLANATION_DAG_COMPUTED:
-            self.compute_explanation_dags()
-        validate("state", self.__state, min_value=Explanation.State.EXPLANATION_DAG_COMPUTED)
+        if self.__state < Explain.State.EXPLANATION_DAG_COMPUTED:
+            self.compute_explanation_dag()
+        validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
         self.__igraph = self.__compute_igraph(dag=self.__explanation_dags[-1])
-        self.__state = Explanation.State.IGRAPH_COMPUTED
-        return self
+        self.__state = Explain.State.IGRAPH_COMPUTED
 
-    def save_igraph(self, filename: Path, **kwargs) -> "Explanation":
-        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+    def save_igraph(self, filename: Path, **kwargs) -> None:
+        if self.__state < Explain.State.IGRAPH_COMPUTED:
+            self.compute_igraph()
+        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
         igraph.plot(
             self.__igraph,
             layout=self.__igraph.layout_kamada_kawai(),
@@ -189,16 +187,16 @@ class Explanation:
             vertex_size=8,
             **kwargs,
         )
-        return self
 
-    def show_navigator_graph(self) -> "Explanation":
-        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+    def show_navigator_graph(self) -> None:
+        if self.__state < Explain.State.IGRAPH_COMPUTED:
+            self.compute_igraph()
+        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
         url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph, separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode()
         webbrowser.open(url, new=0, autoraise=True)
-        return self
 
     @property
     def asp_program(self) -> Optional[str]:
@@ -218,32 +216,42 @@ class Explanation:
 
     @property
     def serialization(self) -> Model:
-        validate("state", self.__state, min_value=Explanation.State.SERIALIZED)
+        validate("state", self.__state, min_value=Explain.State.SERIALIZED)
         return self.__serialization
 
     @property
     def atoms_explained_by_initial_well_founded(self) -> Model:
-        validate("state", self.__state, min_value=Explanation.State.WELL_FOUNDED_COMPUTED)
+        if self.__state < Explain.State.WELL_FOUNDED_COMPUTED:
+            self.compute_atoms_explained_by_initial_well_founded()
+        validate("state", self.__state, min_value=Explain.State.WELL_FOUNDED_COMPUTED)
         return self.__atoms_explained_by_initial_well_founded
 
     @property
     def minimal_assumption_sets(self) -> tuple[Model, ...]:
-        validate("state", self.__state, min_value=Explanation.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
+        if self.__state < Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED:
+            self.compute_minimal_assumption_set()
+        validate("state", self.__state, min_value=Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
         return tuple(self.__minimal_assumption_sets)
 
     @property
     def explanation_sequences(self) -> Tuple[Model, ...]:
-        validate("state", self.__state, min_value=Explanation.State.EXPLANATION_SEQUENCE_COMPUTED)
+        if self.__state < Explain.State.EXPLANATION_SEQUENCE_COMPUTED:
+            self.compute_explanation_sequence()
+        validate("state", self.__state, min_value=Explain.State.EXPLANATION_SEQUENCE_COMPUTED)
         return tuple(self.__explanation_sequences)
 
     @property
     def explanation_dags(self) -> Tuple[Model, ...]:
-        validate("state", self.__state, min_value=Explanation.State.EXPLANATION_DAG_COMPUTED)
+        if self.__state < Explain.State.EXPLANATION_DAG_COMPUTED:
+            self.compute_explanation_dag()
+        validate("state", self.__state, min_value=Explain.State.EXPLANATION_DAG_COMPUTED)
         return tuple(self.__explanation_dags)
 
     @property
     def navigator_graph(self) -> Dict:
-        validate("state", self.__state, min_value=Explanation.State.IGRAPH_COMPUTED)
+        if self.__state < Explain.State.IGRAPH_COMPUTED:
+            self.compute_igraph()
+        validate("state", self.__state, min_value=Explain.State.IGRAPH_COMPUTED)
         res = {
             "nodes": [
                 {
@@ -264,11 +272,15 @@ class Explanation:
         }
         return res
 
-    def __compute_stable_model(self, asp_program, context=None) -> Optional[Model]:
-        return self.__commands_implementation["compute_stable_model"](asp_program, context)
-
-    def __compute_serialization(self) -> "Explanation":
-        validate("state", self.__state, equals=Explanation.State.INITIAL)
+    @staticmethod
+    def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Optional[Model]:
+        control = clingo.Control()
+        control.add("base", [], asp_program)
+        control.ground([("base", [])], context=context)
+        return Model.of(control)
+    
+    def __compute_serialization(self) -> None:
+        validate("state", self.__state, equals=Explain.State.INITIAL)
 
         strongly_negated_atoms = {str(atom)[1:] for atom in self.answer_set if str(atom).startswith('-')}
         strongly_negated_atoms.update(str(atom)[1:] for atom in self.additional_atoms_in_the_base
@@ -278,17 +290,17 @@ class Explanation:
         transformer = ProgramSerializerTransformer()
         transformed_program = transformer.apply(self.asp_program + '\n'.join(f":- {atom}, -{atom}."
                                                                              for atom in strongly_negated_atoms))
-        self.__serialization = self.__compute_stable_model(
+        model = self.compute_stable_model(
             SERIALIZATION_ENCODING + transformed_program +
             '\n'.join(f"true({atom})." for atom in self.answer_set) +
             '\n'.join(f"atom({atom})." for atom in self.additional_atoms_in_the_base) +
             '\n'.join(f"explain({atom})." for atom in self.atoms_to_explain)
         )
-        self.__state = Explanation.State.SERIALIZED
-        return self
+        self.__serialization = model
+        self.__state = Explain.State.SERIALIZED
 
     def __process_aggregates(self) -> Model:
-        res = self.__compute_stable_model(
+        res = self.compute_stable_model(
             PROCESS_AGGREGATES_ENCODING + self.serialization.as_facts,
             context=ProcessAggregatesContext()
         )
@@ -297,14 +309,14 @@ class Explanation:
 
     def __compute_atoms_explained_by_initial_well_founded(self) -> Model:
         encoding = WELL_FOUNDED_ENCODING + self.serialization.as_facts
-        return self.__compute_stable_model(encoding, context=ComputeWellFoundedContext())
+        return self.compute_stable_model(encoding, context=ComputeWellFoundedContext())
 
     def __compute_minimal_assumption_set(self) -> Optional[Model]:
         encoding = MINIMAL_ASSUMPTION_SET_ENCODING + EXPLAIN_ENCODING + \
                    self.serialization.as_facts + \
                    self.atoms_explained_by_initial_well_founded.as_facts + \
                    '\n'.join(model.block_up for model in self.__minimal_assumption_sets)
-        res = self.__compute_stable_model(encoding)
+        res = self.compute_stable_model(encoding)
         if not self.__minimal_assumption_sets:
             validate("res", res, help_msg="No stable model. The input is likely wrong.")
         return res
@@ -315,7 +327,7 @@ class Explanation:
                           self.atoms_explained_by_initial_well_founded.as_facts
         encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + instance + \
                    '\n'.join(model.project("explained_by", 1).block_up for model in self.__explanation_sequences)
-        res = self.__compute_stable_model(encoding, context=ComputeExplanationContext())
+        res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
 
         if res is None:
             validate("must have an explanation", self.__explanation_sequences, min_len=1,
@@ -323,7 +335,7 @@ class Explanation:
             return None
 
         encoding = INDEXED_EXPLAIN_ENCODING + instance + res.as_facts
-        res = self.__compute_stable_model(encoding, context=ComputeExplanationContext())
+        res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
         assert res is not None
 
         def fun(atom):
@@ -339,7 +351,7 @@ class Explanation:
                    self.__explanation_sequences[-1].as_facts + \
                    '\n'.join(model.substitute("link", 1, clingo.Function("_")).block_up
                              for model in self.__explanation_dags)
-        res = self.__compute_stable_model(encoding, context=ComputeExplanationContext())
+        res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
         if not self.__explanation_dags:
             validate("res", res, help_msg="No stable model. The input is likely wrong.")
         return res

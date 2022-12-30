@@ -1,24 +1,20 @@
-import base64
 import json
-import time
-from pathlib import Path
 
-from xasp import utils, commands
+from xasp.entities import Explain
 from xasp.primitives import Model
-from xasp.queries import create_explanation
 
 
 def test_xai_navigator_support():
-    graph = create_explanation().given_the_program(
+    graph = Explain.the_program(
         "a.",
         the_answer_set=Model.of_atoms("a"),
         the_atoms_to_explain=Model.of_atoms("a"),
-    ).compute_igraph().navigator_graph
+    ).navigator_graph
     assert "support\\na." in json.dumps(graph)
 
 
 def test_xai_navigator_lack_of_support():
-    graph = create_explanation().given_the_program(
+    graph = Explain.the_program(
         """
             {b}.
             a :- b.
@@ -26,30 +22,30 @@ def test_xai_navigator_lack_of_support():
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("a"),
         the_additional_atoms_in_the_base=Model.of_atoms("b")
-    ).compute_igraph().navigator_graph
+    ).navigator_graph
     assert 'lack of support\\na :- b.' in json.dumps(graph)
 
 
 def test_xai_navigator_choice_rule():
-    graph = create_explanation().given_the_program(
+    graph = Explain.the_program(
         """
             {b} <= 0.
         """,
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("b"),
-    ).compute_igraph().navigator_graph
+    ).navigator_graph
     assert 'choice rule\\n{b} <= 0.' in json.dumps(graph)
 
 
 def test_xai_navigator_constraint():
-    graph = create_explanation().given_the_program(
+    graph = Explain.the_program(
         """
             {a}.
             :- a.
         """,
         the_answer_set=Model.empty(),
         the_atoms_to_explain=Model.of_atoms("a"),
-    ).compute_igraph().navigator_graph
+    ).navigator_graph
     assert 'required to falsify body\\n:- a.' in json.dumps(graph)
 
 
@@ -60,7 +56,7 @@ def test_xai_navigator_constraint():
 #     with open(utils.PROJECT_ROOT / f"examples/xai.answer_set.lp") as f:
 #         # $ clingo xai.lp --outf=1 | grep -v "^ANSWER$" | grep -v "^%" > xai.answer_set.lp
 #         answer_set = Model.of_program('\n'.join(f.readlines()))
-#     explanation = create_explanation().given_the_program(
+#     explanation = Explain.given_the_program(
 #         program,
 #         the_answer_set=answer_set,
 #         the_atoms_to_explain=Model.of_atoms("behaves_inertially(testing_posTestNeg,121)"),

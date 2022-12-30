@@ -3,12 +3,8 @@ from typing import Optional, Any
 import clingo
 import clingo.ast
 
-from xasp.entities import Explanation
+from xasp.entities import Explain
 from xasp.primitives import Model
-
-
-def create_explanation() -> Explanation:
-    return Explanation(compute_stable_model=compute_stable_model)
 
 
 def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Optional[Model]:
@@ -20,7 +16,7 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
 
 def compute_serialization(asp_program: str, answer_set: Model, base: Model,
                           atoms_to_explain: Model = Model.empty()) -> Model:
-    return create_explanation().given_the_program(
+    return Explain.the_program(
         asp_program,
         the_answer_set=answer_set,
         the_atoms_to_explain=atoms_to_explain,
@@ -29,15 +25,17 @@ def compute_serialization(asp_program: str, answer_set: Model, base: Model,
 
 
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
-    return create_explanation().given_the_serialization(
+    explain = Explain.the_serialization(
         to_be_explained_serialization
-    ).process_aggregates().serialization.drop("original_rule")
+    )
+    explain.process_aggregates()
+    return explain.serialization.drop("original_rule")
 
 
 def compute_atoms_explained_by_initial_well_founded(serialization: Model) -> Model:
-    return create_explanation().given_the_serialization(
+    return Explain.the_serialization(
         serialization
-    ).compute_atoms_explained_by_initial_well_founded().atoms_explained_by_initial_well_founded
+    ).atoms_explained_by_initial_well_founded
 
 
 def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
@@ -45,9 +43,11 @@ def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Mode
 
 
 def compute_minimal_assumption_sets(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
-    return create_explanation().given_the_serialization(
+    explain = Explain.the_serialization(
         to_be_explained_serialization
-    ).compute_minimal_assumption_sets(up_to=up_to).minimal_assumption_sets
+    )
+    explain.compute_minimal_assumption_set(repeat=up_to)
+    return explain.minimal_assumption_sets
 
 
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
@@ -55,9 +55,11 @@ def compute_explanation(to_be_explained_serialization: Model) -> Model:
 
 
 def compute_explanations(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
-    return create_explanation().given_the_serialization(
+    explain = Explain.the_serialization(
         to_be_explained_serialization
-    ).compute_explanation_sequences(up_to=up_to).explanation_sequences
+    )
+    explain.compute_explanation_sequence(repeat=up_to)
+    return explain.explanation_sequences
 
 
 def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
@@ -65,6 +67,8 @@ def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
 
 
 def compute_explanation_dags(to_be_explained_serialization: Model, up_to: Optional[int] = None) -> tuple[Model]:
-    return create_explanation().given_the_serialization(
+    explain = Explain.the_serialization(
         to_be_explained_serialization
-    ).compute_explanation_dags(up_to=up_to).explanation_dags
+    )
+    explain.compute_explanation_dag(repeat=up_to)
+    return explain.explanation_dags

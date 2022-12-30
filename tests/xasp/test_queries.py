@@ -5,7 +5,7 @@ import pytest
 from xasp.primitives import Model
 from xasp.queries import compute_stable_model, process_aggregates, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
-    compute_explanations, compute_explanation_dags, create_explanation, compute_atoms_explained_by_initial_well_founded
+    compute_explanations, compute_explanation_dags, compute_atoms_explained_by_initial_well_founded
 
 logging.getLogger().setLevel(logging.DEBUG)
 
