@@ -633,19 +633,22 @@ Each rule of the program is encoded by facts of the form
 Aggregates are identified by facts of the form
 - aggregate(AGGREGATE)
 
+Atoms to explain are encoded by
+- explain(ATOM)
+
 The answer set is encoded by facts of the form
 - true(ATOM|AGGREGATE)
 - false(ATOM|AGGREGATE)
 
 ******************************************************************************%
 
-has_explanation(Atom) :- explained_by(_,Atom,_).
+has_explanation(Atom) :- indexed_explained_by(_,Atom,_).
 
-explained_by(@index(), Atom, assumption) :- assume_false(Atom).
-explained_by(@index(), Atom, initial_well_founded) :- false(Atom), explained_by(Atom, initial_well_founded).
+indexed_explained_by(@index(), Atom, assumption) :- assume_false(Atom).
+indexed_explained_by(@index(), Atom, initial_well_founded) :- false(Atom), explained_by(Atom, initial_well_founded).
 
 % true atoms can be explained by a supporting rule whose body literals already have an explanation
-explained_by(@index(), Atom, (support, Rule)) :-
+indexed_explained_by(@index(), Atom, (support, Rule)) :-
   explained_by(Atom, (support, Rule));
   true(Atom);
   head(Rule,Atom);
@@ -658,7 +661,7 @@ explained_by(@index(), Atom, (support, Rule)) :-
 % explain false atoms : begin
 
     % false atoms can be explained if all the possibly supporting rules already have an explanation
-    explained_by(@index(), Atom, lack_of_support) :-
+    indexed_explained_by(@index(), Atom, lack_of_support) :-
       explained_by(Atom, lack_of_support);
       false(Atom);
       false_body(Rule) : head(Rule,Atom).
@@ -673,7 +676,7 @@ explained_by(@index(), Atom, (support, Rule)) :-
 
 
     % a false atom can be explained by a rule with false head and whose body contains the false atom, and all other body literals are true
-    explained_by(@index(), Atom, (required_to_falsify_body, Rule)) :-
+    indexed_explained_by(@index(), Atom, (required_to_falsify_body, Rule)) :-
       explained_by(Atom, (required_to_falsify_body, Rule));
       false(Atom), not aggregate(Atom);
       pos_body(Rule,Atom), false_head(Rule);
@@ -684,15 +687,15 @@ explained_by(@index(), Atom, (support, Rule)) :-
     explained_head(Rule) :-
       rule(Rule);
       has_explanation(HAtom) : head(Rule,HAtom).
-    false_head(Rule) :- 
+    false_head(Rule) :-
       explained_head(Rule), not choice(Rule,_,_);
       false(HAtom) : head(Rule,HAtom).
     false_head(Rule) :-
-      explained_head(Rule), choice(Rule, LowerBound, UpperBound); 
+      explained_head(Rule), choice(Rule, LowerBound, UpperBound);
       not LowerBound <= #count{HAtom : head(Rule,HAtom), true(HAtom)} <= UpperBound.
 
     % a false atom can be explained by a choice rule with true body and whose true head atoms already reach the upper bound
-    explained_by(@index(), Atom, (choice_rule, Rule)) :-
+    indexed_explained_by(@index(), Atom, (choice_rule, Rule)) :-
       explained_by(Atom, (choice_rule, Rule));
       false(Atom);
       head(Rule,Atom), choice(Rule, LowerBound, UpperBound), UpperBound != unbounded;
@@ -705,8 +708,48 @@ explained_by(@index(), Atom, (support, Rule)) :-
 % explain false atoms : end
 
 
+% keep only atoms connected to the query : begin
+
+    relevant(Atom) :- explain(Atom).
+    relevant(Atom) :- not explain(_); indexed_explained_by(_, Atom, _).
+
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (support, Rule));
+        pos_body(Rule, Atom').
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (support, Rule));
+        neg_body(Rule, Atom').
+
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (lack_of_support));
+        head(Rule, Atom);
+        pos_body(Rule, Atom'), false(Atom'), indexed_explained_by(Index', Atom', _), Index' < Index.
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (lack_of_support));
+        head(Rule, Atom);
+        neg_body(Rule, Atom'), true(Atom'), indexed_explained_by(Index', Atom', _), Index' < Index.
+
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (required_to_falsify_body, Rule));
+        head(Rule, Atom').
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (required_to_falsify_body, Rule));
+        pos_body(Rule, Atom').
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (required_to_falsify_body, Rule));
+        neg_body(Rule, Atom').
+
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (choice_rule, Rule));
+        pos_body(Rule, Atom').
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (choice_rule, Rule));
+        neg_body(Rule, Atom').
+
+% keep only atoms connected to the query : end
+
 #show.
-#show explained_by/3.
+#show explained_by(Index, Atom, Reason) : indexed_explained_by(Index, Atom, Reason), relevant(Atom).
 
 % avoid warnings
 rule(0) :- #false.
@@ -715,6 +758,7 @@ head(0,0) :- #false.
 pos_body(0,0) :- #false.
 neg_body(0,0) :- #false.
 aggregate(0) :- #false.
+explain(0) :- #false.
 true(0) :- #false.
 false(0) :- #false.
 explained_by(0,0) :- #false.

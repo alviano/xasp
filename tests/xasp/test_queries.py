@@ -256,7 +256,7 @@ def test_3_col():
     colored(2,red)
     """.strip().split('\n')), atoms_to_explain=Model.of_atoms("colored(4,red)"))
     dag = compute_explanation_dag(serialization)
-    assert len(dag) == 55
+    assert len(dag) == 4
 
 
 def test_compute_all_minimal_assumption_sets():
@@ -287,12 +287,10 @@ def test_rule_with_arithmetic():
     minimal_assumption_set = compute_minimal_assumption_set(serialization)
     assert len(minimal_assumption_set) == 0
     assert compute_explanation(serialization) == compute_stable_model("""
-        explained_by(1,a(2),(support,r1(2))).
-        explained_by(2,a(1),(support,r1(1))).
+        explained_by(1,a(1),(support,r1(1))).
     """)
     assert compute_explanation_dag(serialization) == compute_stable_model("""
-        link(1,a(2),(support,r1(2)),"true").
-        link(2,a(1),(support,r1(1)),"true").
+        link(1,a(1),(support,r1(1)),"true").
     """)
 
 
@@ -335,7 +333,7 @@ def test_choice_rule_with_condition_arithmetic():
         atoms_to_explain=Model.of_atoms("a(2)")
     )
     explanation = compute_explanation(serialization)
-    assert "explained_by(2,a(2),(choice_rule,r1))." in explanation.as_facts
+    assert "explained_by(1,a(2),(choice_rule,r1))." in explanation.as_facts
 
 
 def test_choice_rule_with_condition_involving_atoms():
@@ -350,7 +348,7 @@ def test_choice_rule_with_condition_involving_atoms():
         atoms_to_explain=Model.of_atoms("a(3)")
     )
     dag = compute_explanation_dag(serialization)
-    assert 'link(3,a(3),(support,r1),"true").' in dag.as_facts
+    assert 'link(1,a(3),(support,r1),"true").' in dag.as_facts
 
 
 def test_rule_with_compressed_head():
@@ -368,8 +366,9 @@ def test_strong_negation():
     serialization = compute_serialization("""
         {a; -a}.
     """, answer_set=Model.of_atoms("a"), additional_atoms_in_base=Model.of_atoms("a", "-a"),
-                                          atoms_to_explain=Model.of_atoms("a"))
+                                          atoms_to_explain=Model.of_atoms("-a"))
     explanation = compute_explanation(serialization)
+    print(explanation.as_facts)
     assert "explained_by(2,-a,(required_to_falsify_body,r2))." in explanation.as_facts
 
 
