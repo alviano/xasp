@@ -254,7 +254,6 @@ class Explain:
                 {
                     "id": index,
                     "label": node.attributes()["label"],
-                    "assignment": 1 if node.attributes()["color"] == TRUE_COLOR else 0,
                     "x": layout.coords[index][0],
                     "y": layout.coords[index][1],
                 }
@@ -264,7 +263,7 @@ class Explain:
                 {
                     "source": link.tuple[0],
                     "target": link.tuple[1],
-                    "label": link.attributes()["reason"],
+                    "label": link.attributes()["label"],
                 }
                 for link in graph.es
             ],
@@ -365,10 +364,7 @@ class Explain:
         return res
 
     def __compute_igraph(self, dag: Model) -> igraph.Graph:
-        answer_set_as_strings = [str(atom) for atom in self.answer_set]
         graph = igraph.Graph(directed=True)
-        graph.add_vertex('"true"', color=TRUE_COLOR, label="#true")
-        graph.add_vertex('"false"', color=FALSE_COLOR, label="#false")
 
         rules = {}
         for rule in dag.drop("link"):
@@ -383,12 +379,13 @@ class Explain:
             source = str(link.arguments[1])
             label = link.arguments[2]
             sink = str(link.arguments[3])
-            validate("sink is present", graph.vs.select(name=sink), length=1)
-            if len(graph.vs.select(name=source)) == 0:
-                color = TRUE_COLOR if source in answer_set_as_strings else FALSE_COLOR
-                graph.add_vertex(source, color=color, label=source)
-            reason = self.__link_reason(rules, label)
-            graph.add_edge(source, sink, color=EDGE_COLOR[reason.split('\n', maxsplit=1)[0]], reason=reason)
+            reason = self.__link_reason(rules, label).split('\n', maxsplit=1)
+            color = GRAPH_COLOR[reason[0]]
+            if len(graph.vs) == 0 or len(graph.vs.select(name=source)) == 0:
+                graph.add_vertex(source, color=color, label=f"{source}\n{reason[0]}")
+            if sink not in ['"true"', '"false"']:
+                validate("sink is present", graph.vs.select(name=sink), length=1)
+                graph.add_edge(source, sink, color=color, label=reason[1] if len(reason) > 1 else None)
         reachable_nodes = graph.neighborhood(
             vertices=[str(atom) for atom in self.__atoms_to_explain],
             order=len(graph.vs),
@@ -411,16 +408,13 @@ class Explain:
              if label.arguments[1].arguments else "")
 
 
-TRUE_COLOR: Final = "green"
-FALSE_COLOR: Final = "red"
-
-EDGE_COLOR: Final = {
-    "support": "lightgreen",
-    "assumption": "purple",
-    "initial well founded": "#ffcccb",  # light red
-    "lack of support": "orange",
-    "choice rule": "#FF8000",  # dark orange
-    "required to falsify body": "red",
+GRAPH_COLOR: Final = {
+    "support": "#90EE90",  # lightgreen
+    "assumption": "#800080",  # purple
+    "initial well founded": "#8B0000",  # darkred
+    "lack of support": "#FF0000",  # red
+    "choice rule": "#F08080",  # lightcoral
+    "required to falsify body": "#FF8C00",  # dark orange
 }
 
 PROCESS_AGGREGATES_ENCODING: Final = """
