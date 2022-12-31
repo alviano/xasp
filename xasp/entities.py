@@ -254,7 +254,7 @@ class Explain:
                 {
                     "id": index,
                     "label": node.attributes()["label"],
-                    "color": node.attributes()["color"],
+                    "assignment": 1 if node.attributes()["color"] == TRUE_COLOR else 0,
                     "x": layout.coords[index][0],
                     "y": layout.coords[index][1],
                 }
