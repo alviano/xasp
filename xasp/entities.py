@@ -176,8 +176,8 @@ class Explain:
     def save_igraph(self, filename: Path, index: int = -1, **kwargs) -> None:
         self.compute_igraph(index)
         igraph.plot(
-            self.__igraph,
-            layout=self.__igraph[index].layout_kamada_kawai(),
+            self.__igraph[index],
+            layout=self.__igraph[index].layout_sugiyama(),
             margin=140,
             target=filename,
             vertex_label_dist=2,
@@ -248,12 +248,15 @@ class Explain:
     def navigator_graph(self, index: int = -1) -> Dict:
         self.compute_igraph(index)
         graph = self.__igraph[index]
+        layout = graph.layout_sugiyama()
         res = {
             "nodes": [
                 {
                     "id": index,
                     "label": node.attributes()["label"],
                     "color": node.attributes()["color"],
+                    "x": layout.coords[index][0],
+                    "y": layout.coords[index][1],
                 }
                 for index, node in enumerate(graph.vs)
             ],
@@ -261,7 +264,7 @@ class Explain:
                 {
                     "source": link.tuple[0],
                     "target": link.tuple[1],
-                    "label": link.attributes()["label"],
+                    "label": link.attributes()["reason"],
                 }
                 for link in graph.es
             ],
@@ -384,7 +387,8 @@ class Explain:
             if len(graph.vs.select(name=source)) == 0:
                 color = TRUE_COLOR if source in answer_set_as_strings else FALSE_COLOR
                 graph.add_vertex(source, color=color, label=source)
-            graph.add_edge(source, sink, label=self.__link_label(rules, label))
+            reason = self.__link_reason(rules, label)
+            graph.add_edge(source, sink, color=EDGE_COLOR[reason.split('\n', maxsplit=1)[0]], reason=reason)
         reachable_nodes = graph.neighborhood(
             vertices=[str(atom) for atom in self.__atoms_to_explain],
             order=len(graph.vs),
@@ -396,9 +400,9 @@ class Explain:
         return graph.induced_subgraph(nodes)
 
     @staticmethod
-    def __link_label(rules, label: clingo.Symbol) -> str:
+    def __link_reason(rules, label: clingo.Symbol) -> str:
         if label.name in ["assumption", "initial_well_founded"]:
-            return str(label)
+            return label.name.replace('_', ' ')
         validate("name", label.name, equals="")
         validate("arguments", label.arguments, length=2)
         rule, variables = rules[label.arguments[1].name]
@@ -409,6 +413,15 @@ class Explain:
 
 TRUE_COLOR: Final = "green"
 FALSE_COLOR: Final = "red"
+
+EDGE_COLOR: Final = {
+    "support": "lightgreen",
+    "assumption": "purple",
+    "initial well founded": "#ffcccb",  # light red
+    "lack of support": "orange",
+    "choice rule": "#FF8000",  # dark orange
+    "required to falsify body": "red",
+}
 
 PROCESS_AGGREGATES_ENCODING: Final = """
 %******************************************************************************
