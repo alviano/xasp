@@ -53,8 +53,8 @@ class Explain:
 
     @staticmethod
     def the_program(
-            value: str = "",
-            the_answer_set: Model = Model.empty(),
+            value: str,
+            the_answer_set: Model,
             the_atoms_to_explain: Model = Model.empty(),
             the_additional_atoms_in_the_base: Model = Model.empty()
     ) -> "Explain":
@@ -384,8 +384,12 @@ class Explain:
             if len(graph.vs) == 0 or len(graph.vs.select(name=source)) == 0:
                 graph.add_vertex(source, color=color, label=f"{source}\n{reason[0]}")
             if sink not in ['"true"', '"false"']:
-                validate("sink is present", graph.vs.select(name=sink), length=1)
+                validate(f"{sink} is present", graph.vs.select(name=sink), length=1)
                 graph.add_edge(source, sink, color=color, label=reason[1] if len(reason) > 1 else None)
+
+        if len(self.__atoms_to_explain) == 0:
+            return graph
+
         reachable_nodes = graph.neighborhood(
             vertices=[str(atom) for atom in self.__atoms_to_explain],
             order=len(graph.vs),
@@ -733,6 +737,9 @@ indexed_explained_by(@index(), Atom, (support, Rule)) :-
         relevant(Atom), indexed_explained_by(Index, Atom, (required_to_falsify_body, Rule));
         neg_body(Rule, Atom').
 
+    relevant(Atom') :-
+        relevant(Atom), indexed_explained_by(Index, Atom, (choice_rule, Rule));
+        head(Rule, Atom'), true(Atom').
     relevant(Atom') :-
         relevant(Atom), indexed_explained_by(Index, Atom, (choice_rule, Rule));
         pos_body(Rule, Atom').

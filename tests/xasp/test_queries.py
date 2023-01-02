@@ -332,8 +332,8 @@ def test_choice_rule_with_condition_arithmetic():
         additional_atoms_in_base=Model.of_atoms("a(2)"),
         atoms_to_explain=Model.of_atoms("a(2)")
     )
-    explanation = compute_explanation(serialization)
-    assert "explained_by(1,a(2),(choice_rule,r1))." in explanation.as_facts
+    explanation = compute_explanation(serialization).project("explained_by", 1)
+    assert "explained_by(a(2),(choice_rule,r1))." in explanation.as_facts
 
 
 def test_choice_rule_with_condition_involving_atoms():
@@ -368,7 +368,6 @@ def test_strong_negation():
     """, answer_set=Model.of_atoms("a"), additional_atoms_in_base=Model.of_atoms("a", "-a"),
                                           atoms_to_explain=Model.of_atoms("-a"))
     explanation = compute_explanation(serialization)
-    print(explanation.as_facts)
     assert "explained_by(2,-a,(required_to_falsify_body,r2))." in explanation.as_facts
 
 

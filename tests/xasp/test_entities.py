@@ -37,6 +37,15 @@ def test_xai_navigator_choice_rule():
     assert 'b\\nchoice rule' in json.dumps(graph)
 
 
+def test_dag_keeps_true_head_atoms_in_choice_rules():
+    graph = Explain.the_program(
+        "{a; b} <= 1.",
+        the_answer_set=Model.of_atoms("a"),
+        the_atoms_to_explain=Model.of_atoms("b")
+    ).navigator_graph()
+    assert "a\\nsupport" in str(graph)
+
+
 def test_xai_navigator_constraint():
     graph = Explain.the_program(
         """
