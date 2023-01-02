@@ -137,6 +137,9 @@ class Model:
     def drop(self, predicate: str) -> "Model":
         return Model(key=self.__key, value=tuple(atom for atom in self if atom.name != predicate))
 
+    def filter(self, when: Callable[[clingo.Symbol], bool]) -> "Model":
+        return Model(key=self.__key, value=tuple(atom for atom in self if when(atom)))
+
     def map(self, fun: Callable[[clingo.Symbol], clingo.Symbol]) -> 'Model':
         return Model(key=self.__key, value=tuple(sorted(fun(atom) for atom in self)))
 

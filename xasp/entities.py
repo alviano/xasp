@@ -356,7 +356,8 @@ class Explain:
     def __compute_explanation_dag(self) -> Optional[Model]:
         encoding = EXPLANATION_DAG_ENCODING + self.serialization.as_facts + \
                    self.__explanation_sequences[-1].as_facts + \
-                   '\n'.join(model.substitute("link", 1, clingo.Function("_")).block_up
+                   '\n'.join(model.filter(lambda atom: atom.arguments[-1].type != clingo.SymbolType.String)
+                             .substitute("link", 1, clingo.Function("_")).block_up
                              for model in self.__explanation_dags)
         res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
         if not self.__explanation_dags:
@@ -849,15 +850,6 @@ For each atom in the answer set, the input must contain an atom of the form
   - (choice_rule, Rule)
 ******************************************************************************%
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
-    Reason = assumption.
-
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
-    Reason = initial_well_founded.
-
-link(Index, Atom, Reason, "true") :- explained_by(Index, Atom, Reason);
-    Reason = (support, Rule);
-    #count{BAtom : pos_body(Rule, BAtom); BAtom : neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (support, Rule);
     pos_body(Rule, BAtom).
@@ -865,20 +857,6 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (support, Rule);
     neg_body(Rule, BAtom).
 
-%link(Index, Atom, Reason, "false") 
-:- explained_by(Index, Atom, Reason);
-    Reason = lack_of_support;
-    #count{Rule : head(Rule, Atom)} = 0.
-%*
-link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, Reason);
-    Reason = lack_of_support;
-    head(Rule, Atom);
-    FirstIndex = #min{
-        Index' : pos_body(Rule, BAtom'), false(BAtom'), explained_by(Index', BAtom', _);
-        Index' : neg_body(Rule, BAtom'), true(BAtom'),  explained_by(Index', BAtom', _)
-    };
-    explained_by(FirstIndex, BAtom, _).
-*%
 {
     link(Index, Atom, (lack_of_support, Rule), BAtom) : 
         pos_body(Rule, BAtom), false(BAtom), explained_by(Index', BAtom, _), Index' < Index;
@@ -889,9 +867,6 @@ link(Index, Atom, (lack_of_support, Rule), BAtom) :- explained_by(Index, Atom, R
     Reason = lack_of_support;
     head(Rule, Atom).
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
-    Reason = (required_to_falsify_body, Rule);
-    #count{HAtom : head(Rule, HAtom); BAtom: pos_body(Rule, BAtom), BAtom != Atom; BAtom: neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, HAtom) :- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);
     head(Rule, HAtom).
@@ -902,9 +877,6 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     Reason = (required_to_falsify_body, Rule);
     neg_body(Rule, BAtom).
 
-link(Index, Atom, Reason, "false") :- explained_by(Index, Atom, Reason);
-    Reason = (choice_rule, Rule);
-    #count{HAtom : head(Rule, HAtom), true(HAtom); BAtom: pos_body(Rule, BAtom); BAtom: neg_body(Rule, BAtom)} = 0.
 link(Index, Atom, Reason, HAtom) :- explained_by(Index, Atom, Reason);
     Reason = (choice_rule, Rule);
     head(Rule, HAtom), true(HAtom).
@@ -916,7 +888,11 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
     neg_body(Rule, BAtom).
 
 #show.
-#show link/4.
+#show link(Index, Atom, Reason, Atom') : link(Index, Atom, Reason, Atom').
+#show link(Index, Atom, Reason, "true") : explained_by(Index, Atom, Reason), true(Atom),
+    #count{Atom' : link(Index, Atom, _, Atom')} = 0.
+#show link(Index, Atom, Reason, "false") : explained_by(Index, Atom, Reason), false(Atom),
+    #count{Atom' : link(Index, Atom, _, Atom')} = 0.
 #show original_rule/3.
 
 % avoid warnings
