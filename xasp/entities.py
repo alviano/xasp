@@ -187,7 +187,7 @@ class Explain:
 
     def show_navigator_graph(self, index: int = -1) -> None:
         self.compute_igraph(index)
-        url = "https://xasp-navigator.netlify.app/#"
+        url = "https://blind-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode()

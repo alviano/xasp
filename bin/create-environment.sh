@@ -1,9 +1,9 @@
 #!/bin/sh
 
-echo "Specify the environment name, or type ENTER to use xasp"
+echo "Specify the environment name, or type ENTER to use blind"
 read name
 if [ -z "$name" ]; then
-    name="xasp"
+    name="blind"
 fi
 
 conda create --yes --name "$name" python=3.10
