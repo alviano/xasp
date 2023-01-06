@@ -10,13 +10,18 @@ The following tools must be already installed:
 - [Conda](https://conda.io/) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) to create a [Python 3.10](https://www.python.org/downloads/release/python-3109/) environment 
 - [Cairo](https://www.cairographics.org/) library 
 
-We checked the setup instructions on the following OSes: 
+# Tested Environments 
+
+OSes: 
 - CentOS 7
-  - Cairo installed via `$ sudo yum -y install cairo`
 - Debian sid
-  - Cairo installed via `$ sudo apt install cairo`
 - MacOS Big Sur Version 11.6
-  - Cairo installed via `$ brew install cairo` 
+- Ubuntu 20.04.5 LTS
+
+Browsers:
+- Chrome
+- Firefox   
+- Safari
 
 
 # Setup
