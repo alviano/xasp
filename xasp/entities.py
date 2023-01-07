@@ -190,7 +190,7 @@ class Explain:
         url = "https://blind-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
-        url += base64.b64encode(zlib.compress(json_dump)).decode()
+        url += base64.b64encode(zlib.compress(json_dump)).decode() + '!'
         webbrowser.open(url, new=0, autoraise=True)
 
     @property
