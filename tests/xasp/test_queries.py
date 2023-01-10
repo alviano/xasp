@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from xasp.primitives import Model
+from dumbo_asp.primitives import Model, Predicate
 from xasp.queries import compute_stable_model, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
     compute_explanations, compute_explanation_dags, compute_atoms_explained_by_initial_well_founded
@@ -13,7 +13,7 @@ logging.getLogger().setLevel(logging.DEBUG)
 def test_compute_stable_model():
     model = compute_stable_model("a.")
     assert len(model) == 1
-    assert model[0].name == "a"
+    assert model[0].predicate_name == "a"
 
 
 def test_compute_stable_may_return_none():
@@ -332,7 +332,7 @@ def test_choice_rule_with_condition_arithmetic():
         additional_atoms_in_base=Model.of_atoms("a(2)"),
         atoms_to_explain=Model.of_atoms("a(2)")
     )
-    explanation = compute_explanation(serialization).project("explained_by", 1)
+    explanation = compute_explanation(serialization).project(Predicate.parse("explained_by/3"), 1)
     assert "explained_by(a(2),(choice_rule,r1))." in explanation.as_facts
 
 

@@ -2,11 +2,13 @@ import dataclasses
 from collections import defaultdict, namedtuple
 from functools import cached_property
 
+import typeguard
 from clingo import Number
 
 from xasp.utils import log
 
 
+@typeguard.typechecked
 class ProcessAggregatesContext:
     @staticmethod
     def check_operator(operator, bounds, value):
@@ -27,6 +29,7 @@ class ProcessAggregatesContext:
         assert False
 
 
+@typeguard.typechecked
 @dataclasses.dataclass(frozen=True)
 class ComputeWellFoundedContext:
     Rule = namedtuple("Rule", "id head pos_body neg_body")
@@ -67,7 +70,7 @@ class ComputeWellFoundedContext:
         return Number(1) if atom not in self.well_founded_model.potentially_true else Number(0)
 
     @cached_property
-    def well_founded_model(self) -> 'ComputeMinimalAssumptionSetContext.WellFoundedModel':
+    def well_founded_model(self) -> 'ComputeWellFoundedContext.WellFoundedModel':
         log.debug("Compute well-founded model: begin")
         well_founded_model = self.WellFoundedModel(
             set(),
@@ -112,7 +115,7 @@ class ComputeWellFoundedContext:
                 log.debug(f"unfounded: {unfounded_atom}")
                 assert unfounded_atom not in well_founded_model.true
                 well_founded_model.potentially_true.remove(unfounded_atom)
-        log.debug("Compute well-founded model: begin")
+        log.debug("Compute well-founded model: end")
         return well_founded_model
 
     @staticmethod

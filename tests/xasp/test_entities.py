@@ -1,7 +1,7 @@
 import json
 
 from xasp.entities import Explain
-from xasp.primitives import Model
+from dumbo_asp.primitives import Model
 
 
 def test_xai_navigator_support():

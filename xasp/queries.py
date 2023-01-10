@@ -2,18 +2,25 @@ from typing import Optional, Any
 
 import clingo
 import clingo.ast
+import typeguard
 
+from dumbo_asp.primitives import Model, Predicate
 from xasp.entities import Explain
-from xasp.primitives import Model, PositiveIntegerOrUnbounded
+from xasp.primitives import PositiveIntegerOrUnbounded
 
 
+@typeguard.typechecked
 def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Optional[Model]:
     control = clingo.Control()
     control.add("base", [], asp_program)
     control.ground([("base", [])], context=context)
-    return Model.of(control)
+    try:
+        return Model.of(control)
+    except Model.NoModelError:
+        return None
 
 
+@typeguard.typechecked
 def compute_serialization(asp_program: str, answer_set: Model, additional_atoms_in_base: Model = Model.empty(),
                           atoms_to_explain: Model = Model.empty()) -> Model:
     return Explain.the_program(
@@ -21,32 +28,36 @@ def compute_serialization(asp_program: str, answer_set: Model, additional_atoms_
         the_answer_set=answer_set,
         the_atoms_to_explain=atoms_to_explain,
         the_additional_atoms_in_the_base=additional_atoms_in_base,
-    ).serialization.drop("original_rule")
+    ).serialization.drop(Predicate.parse("original_rule"))
 
 
+@typeguard.typechecked
 def process_aggregates(to_be_explained_serialization: Model) -> Model:
     explain = Explain.the_serialization(
         to_be_explained_serialization
     )
     explain.process_aggregates()
-    return explain.serialization.drop("original_rule")
+    return explain.serialization.drop(Predicate.parse("original_rule"))
 
 
+@typeguard.typechecked
 def compute_atoms_explained_by_initial_well_founded(serialization: Model) -> Model:
     return Explain.the_serialization(
         serialization
     ).atoms_explained_by_initial_well_founded
 
 
+@typeguard.typechecked
 def compute_minimal_assumption_set(to_be_explained_serialization: Model) -> Model:
     return Explain.the_serialization(to_be_explained_serialization).minimal_assumption_set()
 
 
+@typeguard.typechecked
 def compute_minimal_assumption_sets(
         to_be_explained_serialization: Model,
         atoms_to_explain: Model,
         up_to: Optional[int] = None
-) -> tuple[Model]:
+) -> tuple[Model, ...]:
     explain = Explain.the_serialization(
         to_be_explained_serialization,
         the_atoms_to_explain=atoms_to_explain,
@@ -57,15 +68,17 @@ def compute_minimal_assumption_sets(
     return tuple(explain.minimal_assumption_set(index) for index in range(explain.minimal_assumption_sets))
 
 
+@typeguard.typechecked
 def compute_explanation(to_be_explained_serialization: Model) -> Model:
     return Explain.the_serialization(to_be_explained_serialization).explanation_sequence()
 
 
+@typeguard.typechecked
 def compute_explanations(
         to_be_explained_serialization: Model,
         atoms_to_explain: Model,
         up_to: Optional[int] = None
-) -> tuple[Model]:
+) -> tuple[Model, ...]:
     explain = Explain.the_serialization(
         to_be_explained_serialization,
         the_atoms_to_explain=atoms_to_explain,
@@ -76,15 +89,17 @@ def compute_explanations(
     return tuple(explain.explanation_sequence(index) for index in range(explain.explanation_sequences))
 
 
+@typeguard.typechecked
 def compute_explanation_dag(to_be_explained_serialization: Model) -> Model:
     return Explain.the_serialization(to_be_explained_serialization).explanation_dag()
 
 
+@typeguard.typechecked
 def compute_explanation_dags(
         to_be_explained_serialization: Model,
         atoms_to_explain: Model,
         up_to: Optional[int] = None
-) -> tuple[Model]:
+) -> tuple[Model, ...]:
     explain = Explain.the_serialization(
         to_be_explained_serialization,
         the_atoms_to_explain=atoms_to_explain,

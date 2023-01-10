@@ -11,9 +11,11 @@ from typing import Callable, Final, Optional, Dict, List, Any, Union
 import clingo
 import igraph
 import typeguard
+from clingo import Model
+from dumbo_asp.primitives import Model, Predicate, GroundAtom
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
-from xasp.primitives import Model, PositiveIntegerOrUnbounded
+from xasp.primitives import PositiveIntegerOrUnbounded
 from xasp.transformers import ProgramSerializerTransformer
 from xasp.utils import validate, call_with_difference_if_invalid_index
 
@@ -98,6 +100,8 @@ class Explain:
         return res
 
     def process_aggregates(self) -> None:
+        if self.__state >= Explain.State.AGGREGATE_PROCESSED:
+            return
         if self.__state < Explain.State.SERIALIZED:
             self.__compute_serialization()
         validate("state", self.__state, equals=Explain.State.SERIALIZED)
@@ -105,6 +109,8 @@ class Explain:
         self.__state = Explain.State.AGGREGATE_PROCESSED
 
     def compute_atoms_explained_by_initial_well_founded(self) -> None:
+        if self.__state >= Explain.State.WELL_FOUNDED_COMPUTED:
+            return
         if self.__state < Explain.State.AGGREGATE_PROCESSED:
             self.process_aggregates()
         validate("state", self.__state, equals=Explain.State.AGGREGATE_PROCESSED)
@@ -123,7 +129,7 @@ class Explain:
             if assumption_set is None:
                 break
             self.__minimal_assumption_sets.append(assumption_set)
-        self.__state = Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED
+        self.__state = max(self.__state, Explain.State.MINIMAL_ASSUMPTION_SET_COMPUTED)
 
     def compute_explanation_sequence(self, repeat: Union[int, PositiveIntegerOrUnbounded] = 1) -> None:
         if type(repeat) is int:
@@ -134,6 +140,7 @@ class Explain:
         repeat += len(self.__explanation_sequences)
         while repeat.greater_than(len(self.__explanation_sequences)):
             explanation = self.__compute_explanation_sequence()
+            print(explanation, flush=True)
             if explanation is not None:
                 self.__explanation_sequences.append(explanation)
             else:
@@ -141,7 +148,7 @@ class Explain:
                 self.compute_minimal_assumption_set()
                 if len(self.__minimal_assumption_sets) == assumption_sets:
                     break
-        self.__state = Explain.State.EXPLANATION_SEQUENCE_COMPUTED
+        self.__state = max(self.__state, Explain.State.EXPLANATION_SEQUENCE_COMPUTED)
 
     def compute_explanation_dag(self, repeat: Union[int, PositiveIntegerOrUnbounded] = 1) -> None:
         if type(repeat) is int:
@@ -171,7 +178,7 @@ class Explain:
             self.__igraph.append(None)
         if self.__igraph[index] is None:
             self.__igraph[index] = self.__compute_igraph(dag=self.__explanation_dags[index])
-        self.__state = Explain.State.IGRAPH_COMPUTED
+        self.__state = max(self.__state, Explain.State.IGRAPH_COMPUTED)
 
     def save_igraph(self, filename: Path, index: int = -1, **kwargs) -> None:
         self.compute_igraph(index)
@@ -187,7 +194,7 @@ class Explain:
 
     def show_navigator_graph(self, index: int = -1) -> None:
         self.compute_igraph(index)
-        url = "https://blind-navigator.netlify.app/#"
+        url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode() + '!'
@@ -275,7 +282,10 @@ class Explain:
         control = clingo.Control()
         control.add("base", [], asp_program)
         control.ground([("base", [])], context=context)
-        return Model.of(control)
+        try:
+            return Model.of(control)
+        except Model.NoModelError:
+            return None
     
     def __compute_serialization(self) -> None:
         validate("state", self.__state, equals=Explain.State.INITIAL)
@@ -295,7 +305,7 @@ class Explain:
             '\n'.join(f"explain({atom})." for atom in self.atoms_to_explain)
         )
         self.__serialization = model
-        self.__state = Explain.State.SERIALIZED
+        self.__state = max(self.__state, Explain.State.SERIALIZED)
 
     def __process_aggregates(self) -> Model:
         res = self.compute_stable_model(
@@ -333,7 +343,8 @@ class Explain:
                           self.serialization.as_facts + \
                           self.atoms_explained_by_initial_well_founded.as_facts
         encoding = EXPLANATION_ENCODING + EXPLAIN_ENCODING + instance + \
-                   '\n'.join(model.project("explained_by", 1).block_up for model in self.__explanation_sequences)
+                   '\n'.join(model.project(Predicate.parse("explained_by/3"), 1).block_up
+                             for model in self.__explanation_sequences)
         res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
 
         if res is None:
@@ -345,9 +356,10 @@ class Explain:
         res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
         assert res is not None
 
-        def fun(atom):
+        def fun(atom: GroundAtom) -> GroundAtom:
             fun.index += 1
-            return clingo.Function(atom.name, [clingo.Number(fun.index)] + atom.arguments[1:])
+            return GroundAtom(clingo.Function(atom.predicate_name,
+                                              [clingo.Number(fun.index)] + list(atom.arguments[1:])))
 
         fun.index = 0
 
@@ -357,7 +369,7 @@ class Explain:
         encoding = EXPLANATION_DAG_ENCODING + self.serialization.as_facts + \
                    self.__explanation_sequences[-1].as_facts + \
                    '\n'.join(model.filter(lambda atom: atom.arguments[-1].type != clingo.SymbolType.String)
-                             .substitute("link", 1, clingo.Function("_")).block_up
+                             .substitute(Predicate.parse("link/2"), 1, clingo.Function("_")).block_up
                              for model in self.__explanation_dags)
         res = self.compute_stable_model(encoding, context=ComputeExplanationContext())
         if not self.__explanation_dags:
@@ -368,15 +380,15 @@ class Explain:
         graph = igraph.Graph(directed=True)
 
         rules = {}
-        for rule in dag.drop("link"):
-            validate("predicate", rule.name, equals="original_rule")
+        for rule in dag.drop(Predicate.parse("link/4")):
+            validate("predicate", rule.predicate_name, equals="original_rule")
             rule_index = str(rule.arguments[0])
             b64 = rule.arguments[1].string
             variables = rule.arguments[2].string
             rules[rule_index] = (base64.b64decode(b64).decode(), variables)
 
-        for link in dag.drop("original_rule"):
-            validate("link name", link.name, equals="link")
+        for link in dag.drop(Predicate.parse("original_rule/3")):
+            validate("link name", link.predicate_name, equals="link")
             source = str(link.arguments[1])
             label = link.arguments[2]
             sink = str(link.arguments[3])
