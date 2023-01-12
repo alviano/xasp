@@ -13,11 +13,12 @@ import igraph
 import typeguard
 from clingo import Model
 from dumbo_asp.primitives import Model, Predicate, GroundAtom
+from dumbo_asp.utils import validate
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
 from xasp.primitives import PositiveIntegerOrUnbounded
 from xasp.transformers import ProgramSerializerTransformer
-from xasp.utils import validate, call_with_difference_if_invalid_index
+from xasp.utils import call_with_difference_if_invalid_index
 
 
 @typeguard.typechecked

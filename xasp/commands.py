@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Optional
+from dumbo_asp.primitives import Model
 
 from xasp.entities import Explain
-from xasp.primitives import Model
 
 
 def save_explanation_dag(dag: Model, answer_set: Model, atoms_to_explain: Model, target: Path,

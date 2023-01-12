@@ -1,12 +1,10 @@
 import dataclasses
 import functools
 from dataclasses import InitVar
-from typing import Any, Callable, Optional, Iterable, Union
+from typing import Any, Optional, Union
 
-import clingo
 import typeguard
-
-from xasp.utils import validate
+from dumbo_asp.utils import validate
 
 
 @typeguard.typechecked
@@ -19,7 +17,7 @@ class PositiveIntegerOrUnbounded:
     __key = object()
 
     def __post_init__(self, key):
-        validate("key", key, equals=PositiveIntegerOrUnbounded.__key, help_msg="Use a factory method")
+        validate("key", key, equals=self.__key, help_msg="Use a factory method")
 
     @staticmethod
     def of(value: int) -> "PositiveIntegerOrUnbounded":

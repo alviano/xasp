@@ -5,7 +5,7 @@ from functools import cached_property
 import typeguard
 from clingo import Number
 
-from xasp.utils import log
+from dumbo_asp.utils import log
 
 
 @typeguard.typechecked

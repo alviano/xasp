@@ -1,6 +1,7 @@
 from unittest.mock import Mock
+from dumbo_asp.utils import pattern
 
-from xasp.utils import pattern, call_with_difference_if_invalid_index
+from xasp.utils import call_with_difference_if_invalid_index
 
 
 def test_pattern():
