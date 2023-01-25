@@ -6,7 +6,7 @@ import typeguard
 
 from dumbo_asp.primitives import Model, Predicate
 from xasp.entities import Explain
-from xasp.primitives import PositiveIntegerOrUnbounded
+from dumbo_utils.primitives import PositiveIntegerOrUnbounded
 
 
 @typeguard.typechecked
@@ -15,7 +15,7 @@ def compute_stable_model(asp_program: str, context: Optional[Any] = None) -> Opt
     control.add("base", [], asp_program)
     control.ground([("base", [])], context=context)
     try:
-        return Model.of(control)
+        return Model.of_control(control)
     except Model.NoModelError:
         return None
 

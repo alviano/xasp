@@ -6,7 +6,7 @@ import clingo.ast
 import typeguard
 from clingo.ast import ASTType, ComparisonOperator, AggregateFunction, Sign, Location
 
-from dumbo_asp.utils import validate
+from valid8 import validate
 
 
 @typeguard.typechecked

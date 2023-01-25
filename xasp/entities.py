@@ -13,10 +13,10 @@ import igraph
 import typeguard
 from clingo import Model
 from dumbo_asp.primitives import Model, Predicate, GroundAtom
-from dumbo_asp.utils import validate
+from valid8 import validate
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
-from xasp.primitives import PositiveIntegerOrUnbounded
+from dumbo_utils.primitives import PositiveIntegerOrUnbounded
 from xasp.transformers import ProgramSerializerTransformer
 from xasp.utils import call_with_difference_if_invalid_index
 
@@ -284,7 +284,7 @@ class Explain:
         control.add("base", [], asp_program)
         control.ground([("base", [])], context=context)
         try:
-            return Model.of(control)
+            return Model.of_control(control)
         except Model.NoModelError:
             return None
     
