@@ -141,7 +141,6 @@ class Explain:
         repeat += len(self.__explanation_sequences)
         while repeat.greater_than(len(self.__explanation_sequences)):
             explanation = self.__compute_explanation_sequence()
-            print(explanation, flush=True)
             if explanation is not None:
                 self.__explanation_sequences.append(explanation)
             else:
@@ -196,9 +195,9 @@ class Explain:
     def show_navigator_graph(self, index: int = -1) -> None:
         self.compute_igraph(index)
         url = "https://xasp-navigator.netlify.app/#"
-        url = "http://localhost:5173/#"
+        # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
-        url += base64.b64encode(zlib.compress(json_dump)).decode() + '!'
+        url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
         webbrowser.open(url, new=0, autoraise=True)
 
     @property
@@ -398,6 +397,8 @@ class Explain:
             if len(graph.vs) == 0 or len(graph.vs.select(name=source)) == 0:
                 graph.add_vertex(source, color=color, label=f"{source}\n{reason[0]}")
             if sink not in ['"true"', '"false"']:
+                if sink == '"#true"' and len(graph.vs.select(name=sink)) == 0:
+                    graph.add_vertex(sink, color=color, label=f"#true")
                 validate(f"{sink} is present", graph.vs.select(name=sink), length=1)
                 graph.add_edge(source, sink, color=color, label=reason[1] if len(reason) > 1 else None)
 
@@ -412,7 +413,7 @@ class Explain:
         nodes = []
         for reachable_nodes_element in reachable_nodes:
             nodes.extend(reachable_nodes_element)
-        return graph.induced_subgraph(nodes)
+        return graph.induced_subgraph(list(set(nodes)))
 
     @staticmethod
     def __link_reason(rules, label: clingo.Symbol) -> str:
@@ -904,6 +905,8 @@ link(Index, Atom, Reason, BAtom) :- explained_by(Index, Atom, Reason);
 #show link(Index, Atom, Reason, Atom') : link(Index, Atom, Reason, Atom').
 #show link(Index, Atom, Reason, "true") : explained_by(Index, Atom, Reason), true(Atom),
     #count{Atom' : link(Index, Atom, _, Atom')} = 0.
+#show link(Index, Atom, Reason, "#true") : explained_by(Index, Atom, Reason), true(Atom),
+    #count{Atom' : link(Index, Atom, _, Atom')} = 0, Reason = (support, Rule), choice(Rule, _, _).
 #show link(Index, Atom, Reason, "false") : explained_by(Index, Atom, Reason), false(Atom),
     #count{Atom' : link(Index, Atom, _, Atom')} = 0.
 #show original_rule/3.
