@@ -78,6 +78,10 @@ explain.compute_explanation_dag()  # it can also be omitted
 print(explain.explanation_dag())
 ```
 
+Methods `Explain.navigator_graph_url()` and `Explain.show_navigator_graph()` can be used, respectively,
+to obtain the url of a web-based UI for navigating the dag, and to open the default browser
+at that url.
+
 All the above commands and queries can be combined.
 Actually, required steps are performed automatically when required.
-Finally, it is possible to ask for more minimal assumption sets, explanation sequences and DAGs either by using the keyword `repeat=<int>` in the `compute_*` commands, or the keyword `index=<int>` in the queries (`minimal_assumption_set()`, `explanation_sequence()`, `explanation_dag`, `show_navigator_graph()`).
+Finally, it is possible to ask for more minimal assumption sets, explanation sequences and DAGs either by using the keyword `repeat=<int>` in the `compute_*` commands, or the keyword `index=<int>` in the queries (`minimal_assumption_set()`, `explanation_sequence()`, `explanation_dag`, `navigator_graph_url()`, `show_navigator_graph()`).

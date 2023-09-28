@@ -192,12 +192,16 @@ class Explain:
             **kwargs,
         )
 
-    def show_navigator_graph(self, index: int = -1) -> None:
+    def navigator_graph_url(self, index: int = -1) -> str:
         self.compute_igraph(index)
         url = "https://xasp-navigator.netlify.app/#"
         # url = "http://localhost:5173/#"
         json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
         url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
+        return url
+
+    def show_navigator_graph(self, index: int = -1) -> None:
+        url = self.navigator_graph_url(index)
         webbrowser.open(url, new=0, autoraise=True)
 
     @property
