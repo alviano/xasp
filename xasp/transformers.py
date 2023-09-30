@@ -99,7 +99,7 @@ class ProgramSerializerTransformer(Transformer):
             elif literal.atom.ast_type == ASTType.SymbolicAtom:
                 self.add_to_result(f"pos_body({rule_id},{literal.atom}) :- {rule_atom}.")
             elif literal.atom.ast_type == ASTType.BodyAggregate:
-                self.__process_aggregate(literal, rule_id, rule_atom)
+                self.__process_aggregate(literal, rule_id, rule_atom, variables)
             else:
                 raise ValueError(f"Cannot process {literal}")
 
@@ -160,7 +160,7 @@ class ProgramSerializerTransformer(Transformer):
                 condition = self.__compute_rule_body(element.condition, "true")
                 self.add_to_result(f"head({rule_id},{element.literal}) :- {rule_atom}, {condition}.")
 
-    def __process_aggregate(self, literal, rule_id, rule_atom):
+    def __process_aggregate(self, literal, rule_id, rule_atom, variables):
         if literal.atom.right_guard is None:
             operator, bound = str(literal.atom.left_guard).split()
             if operator in ['>', '>=']:
@@ -195,7 +195,8 @@ class ProgramSerializerTransformer(Transformer):
         else:
             raise ValueError(f"Cannot process aggregate function with ID {fun}")
 
-        self.add_to_result(f'aggregate({agg_id},{fun},"{operator}",{bound}) :- {rule_atom}.')
+        self.add_to_result(f'aggregate({agg_id}({variables}),{fun},"{operator}",{bound}) :- {rule_atom}.')
+        self.add_to_result(f'original_rule({agg_id},"{self.encode_input(literal.location)}","{variables}") :- {rule_atom}.')
         for element in literal.atom.elements:
             validate("condition", element.condition, length=1)
             validate("condition", element.condition[0].sign, equals=Sign.NoSign)
