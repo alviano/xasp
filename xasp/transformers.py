@@ -195,7 +195,7 @@ class ProgramSerializerTransformer(Transformer):
         else:
             raise ValueError(f"Cannot process aggregate function with ID {fun}")
 
-        self.add_to_result(f'aggregate({agg_id}({variables}),{fun},"{operator}",{bound}) :- {rule_atom}.')
+        self.add_to_result(f'aggregate({agg_id},{fun},"{operator}",{bound}) :- {rule_atom}.')
         self.add_to_result(f'original_rule({agg_id},"{self.encode_input(literal.location)}","{variables}") :- {rule_atom}.')
         for element in literal.atom.elements:
             validate("condition", element.condition, length=1)

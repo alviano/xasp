@@ -421,7 +421,9 @@ class Explain:
             return label.name.replace('_', ' ')
         validate("name", label.name, equals="")
         validate("arguments", label.arguments, length=2)
-        rule, variables = rules[label.arguments[1].name]
+        rule, variables = rules[
+            label.arguments[1].name if label.arguments[1].name.startswith("r") else str(label.arguments[1])
+        ]
         return f"{label.arguments[0].name.replace('_', ' ')}\n{rule}" + \
             (f"\n{variables} => {','.join(str(x) for x in label.arguments[1].arguments)}"
              if label.arguments[1].arguments else "")
