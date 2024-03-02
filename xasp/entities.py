@@ -196,7 +196,7 @@ class Explain:
     def show_navigator_graph(self, index: int = -1) -> None:
         self.compute_igraph(index)
         url = "https://xasp-navigator.netlify.app/#"
-        url = "http://localhost:5173/#"
+        # url = "http://localhost:5173/#"
         url += compress_object_for_url(self.navigator_graph(index)) + '%21'
         webbrowser.open(url, new=0, autoraise=True)
 
