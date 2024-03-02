@@ -13,6 +13,7 @@ import igraph
 import typeguard
 from clingo import Model
 from dumbo_asp.primitives import Model, Predicate, GroundAtom
+from dumbo_utils.url import compress_object_for_url
 from valid8 import validate
 
 from xasp.contexts import ComputeExplanationContext, ProcessAggregatesContext, ComputeWellFoundedContext
@@ -195,9 +196,8 @@ class Explain:
     def show_navigator_graph(self, index: int = -1) -> None:
         self.compute_igraph(index)
         url = "https://xasp-navigator.netlify.app/#"
-        # url = "http://localhost:5173/#"
-        json_dump = json.dumps(self.navigator_graph(index), separators=(',', ':')).encode()
-        url += base64.b64encode(zlib.compress(json_dump)).decode() + '%21'
+        url = "http://localhost:5173/#"
+        url += compress_object_for_url(self.navigator_graph(index)) + '%21'
         webbrowser.open(url, new=0, autoraise=True)
 
     @property
