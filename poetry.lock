@@ -336,13 +336,13 @@ files = [
 
 [[package]]
 name = "dumbo-asp"
-version = "0.3.5"
+version = "0.3.6"
 description = "Utilities for Answer Set Programming"
 optional = false
 python-versions = ">=3.11,<4.0"
 files = [
-    {file = "dumbo_asp-0.3.5-py3-none-any.whl", hash = "sha256:8f36f34904cb42ea9a996605dfce90dbd429192fd76b6c242d7ead0d402f157a"},
-    {file = "dumbo_asp-0.3.5.tar.gz", hash = "sha256:603d5d9e0f018bab0e183805c09037d4c01ea54f08df86f6dd7efa3414ffa381"},
+    {file = "dumbo_asp-0.3.6-py3-none-any.whl", hash = "sha256:68cb6a94984bf5d754a23f94f291a6a084f04a47d5c019ebd92eaec4304d2791"},
+    {file = "dumbo_asp-0.3.6.tar.gz", hash = "sha256:4bcec0539546ff74d892cd496d6860a7fec9c2ee775f8e684c33ceebfe87a0dc"},
 ]
 
 [package.dependencies]
@@ -779,4 +779,4 @@ six = "*"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "318545bd9825248d5965293484333eb6624d8967eb41b1909404ac50979d07dd"
+content-hash = "8afe474ccdd0b4de1d04c4a2226eb1531436582a3d80e21436bcb055ffbf9b2c"
