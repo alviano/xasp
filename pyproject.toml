@@ -1,16 +1,15 @@
 [tool.poetry]
 name = "xasp"
-version = "0.7.2"
+version = "0.8.0"
 description = "API for eXplainable Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 dateutils = "^0.6.12"
-igraph = "^0.10.4"
 cairocffi = "^1.4.0"
 Pillow = "^9.3.0"
-dumbo-asp = "0.0.21"
+dumbo-asp = "0.3.0"
 
 [tool.poetry.dev-dependencies]
 coverage = "^7.1.0"

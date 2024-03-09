@@ -1,6 +1,6 @@
 import json
 
-from dumbo_asp.primitives import Model
+from dumbo_asp.primitives.models import Model
 
 from xasp.entities import Explain
 

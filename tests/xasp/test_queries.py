@@ -2,7 +2,8 @@ import logging
 
 import pytest
 
-from dumbo_asp.primitives import Model, Predicate
+from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.predicates import Predicate
 from xasp.queries import compute_stable_model, compute_minimal_assumption_set, \
     compute_explanation, compute_explanation_dag, compute_serialization, compute_minimal_assumption_sets, \
     compute_explanations, compute_explanation_dags, compute_atoms_explained_by_initial_well_founded

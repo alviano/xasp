@@ -12,7 +12,9 @@ import clingo
 import igraph
 import typeguard
 from clingo import Model
-from dumbo_asp.primitives import Model, Predicate, GroundAtom
+from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.predicates import Predicate
+from dumbo_asp.primitives.atoms import GroundAtom
 from dumbo_utils.url import compress_object_for_url
 from valid8 import validate
 
@@ -422,7 +424,10 @@ class Explain:
         validate("name", label.name, equals="")
         validate("arguments", label.arguments, length=2)
         rule, variables = rules[
-            label.arguments[1].name if label.arguments[1].name.startswith("r") else str(label.arguments[1])
+            label.arguments[1].name if label.arguments[1].name.startswith("r") else
+            str(label.arguments[1]) if label.arguments[1].name.startswith("agg") else
+            str(label.arguments[1].arguments[0])
+
         ]
         return f"{label.arguments[0].name.replace('_', ' ')}\n{rule}" + \
             (f"\n{variables} => {','.join(str(x) for x in label.arguments[1].arguments)}"

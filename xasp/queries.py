@@ -4,7 +4,8 @@ import clingo
 import clingo.ast
 import typeguard
 
-from dumbo_asp.primitives import Model, Predicate
+from dumbo_asp.primitives.models import Model
+from dumbo_asp.primitives.predicates import Predicate
 from xasp.entities import Explain
 from dumbo_utils.primitives import PositiveIntegerOrUnbounded
 
