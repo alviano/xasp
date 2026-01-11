@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xasp"
-version = "0.8.3"
+version = "0.8.4"
 description = "API for eXplainable Answer Set Programming"
 authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 
@@ -8,9 +8,9 @@ authors = ["Mario Alviano <mario.alviano@gmail.com>"]
 python = "^3.11"
 dumbo-asp = "0.3.6"
 
-[tool.poetry.dev-dependencies]
+[poetry.group.dev.dependencies]
 coverage = "^7.1.0"
-pytest = "^7.2.0"
+pytest = "^9.0.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

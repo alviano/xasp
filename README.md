@@ -39,7 +39,7 @@ The computation of an explanation can be performed step-by-step.
 For example, a minimal assumption set can be computed by using the following snipped of code:
 ```python
 from xasp.entities import Explain
-from dumbo_asp.primitives import Model
+from dumbo_asp.primitives.models import Model
 
 explain = Explain.the_program(
     "[A PROGRAM HERE]",
@@ -53,7 +53,7 @@ print(explain.minimal_assumption_set())
 An explanation sequence can be computed by using the following snipped of code:
 ```python
 from xasp.entities import Explain
-from dumbo_asp.primitives import Model
+from dumbo_asp.primitives.models import Model
 
 explain = Explain.the_program(
     "[A PROGRAM HERE]",
@@ -67,7 +67,7 @@ print(explain.explanation_sequence())
 An explanation DAG can be computed by using the following snipped of code:
 ```python
 from xasp.entities import Explain
-from dumbo_asp.primitives import Model
+from dumbo_asp.primitives.models import Model
 
 explain = Explain.the_program(
     "[A PROGRAM HERE]",
